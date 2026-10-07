@@ -23,6 +23,9 @@ gl_name_21: db "glUseProgram",0
 gl_name_22: db "glDrawArrays",0
 gl_name_23: db "glEnable",0
 gl_name_24: db "glGetError",0
+gl_name_25: db "glGetUniformLocation",0
+gl_name_26: db "glUniform3fv",0
+gl_name_27: db "glUniform2fv",0
 align 4
 gl_names:
 dd gl_name_0-gl_names
@@ -50,3 +53,6 @@ dd gl_name_21-gl_names
 dd gl_name_22-gl_names
 dd gl_name_23-gl_names
 dd gl_name_24-gl_names
+dd gl_name_25-gl_names
+dd gl_name_26-gl_names
+dd gl_name_27-gl_names

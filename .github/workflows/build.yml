@@ -1,5 +1,9 @@
 name: Assembly engine checks
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -11,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y nasm gcc make binutils python3 libsdl2-dev libgl1-mesa-dri xvfb xauth
-      - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window
+      - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window packaging-test
       - run: ./build/linux/${{ matrix.config }}/voxela
       - run: xvfb-run -a make CONFIG=${{ matrix.config }} graphics-reference
         env:
@@ -38,5 +42,26 @@ jobs:
             nasm
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-SDL2
+            mingw-w64-ucrt-x86_64-python
       - run: make TARGET=windows CONFIG=${{ matrix.config }} all test window
       - run: ./build/windows/${{ matrix.config }}/voxela.exe
+      - run: /ucrt64/bin/python.exe tests/packaging.py
+      - name: Package standalone Windows viewer
+        if: matrix.config == 'release'
+        run: >-
+          /ucrt64/bin/python.exe tools/package_windows.py
+          --viewer build/windows/release/voxela-window.exe
+          --headless build/windows/release/voxela.exe
+          --dll-dir "$(cygpath -w /ucrt64/bin)"
+          --license-dir "$(cygpath -w /ucrt64/share/licenses)"
+          --objdump "$(cygpath -w /ucrt64/bin/objdump.exe)"
+          --output build/windows/release/package
+          --commit "${{ github.sha }}"
+      - name: Upload Windows executable package
+        if: matrix.config == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxelA-Windows-x64-${{ github.sha }}
+          path: build/windows/release/package/
+          if-no-files-found: error
+          retention-days: 14

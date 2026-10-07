@@ -9,6 +9,7 @@ endif
 ifeq ($(TARGET),linux)
 FORMAT = elf64
 EXT =
+MATH_LIBS = -lm
 LDFLAGS = -no-pie -Wl,-z,noexecstack
 else ifeq ($(TARGET),windows)
 FORMAT = win64
@@ -26,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -35,18 +36,19 @@ $(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -f $(FORMAT) $< -o $@
 $(BUILD)/voxela$(EXT): $(OBJECTS) $(BUILD)/src/platform/main.o
-	$(LINKER) $(LDFLAGS) $^ -o $@
+	$(LINKER) $(LDFLAGS) $^ $(MATH_LIBS) -o $@
 $(BUILD)/engine_tests$(EXT): $(OBJECTS) $(BUILD)/tests/runner.o
-	$(LINKER) $(LDFLAGS) $^ -o $@
+	$(LINKER) $(LDFLAGS) $^ $(MATH_LIBS) -o $@
 test: $(BUILD)/engine_tests$(EXT)
 	./$(BUILD)/engine_tests$(EXT)
 ifeq ($(TARGET),linux)
 $(BUILD)/libvoxela.so: $(OBJECTS)
-	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ -o $@
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(MATH_LIBS) -o $@
 reference: $(BUILD)/libvoxela.so
 	python3 tests/reference.py $(BUILD)/libvoxela.so
 	python3 tests/chunks.py $(BUILD)/libvoxela.so
 	python3 tests/vertices.py $(BUILD)/libvoxela.so
+	python3 tests/camera.py $(BUILD)/libvoxela.so
 endif
 clean:
 	rm -rf build
@@ -60,12 +62,13 @@ $(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc
 	$(NASM) $(FLAGS) -DWINDOWS_ABI=1 -f elf64 $< -o $@.raw
 	objcopy --prefix-symbols=win_ $@.raw $@
 $(BUILD)/libwindows_abi.so: $(WIN_ABI_OBJECTS) $(BUILD)/tests/windows_abi_shim.o
-	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ -o $@
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(MATH_LIBS) -o $@
 .PHONY: abi-reference
 abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/reference.py $<
 	python3 tests/chunks.py $<
 	python3 tests/vertices.py $<
+	python3 tests/camera.py $<
 endif
 
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
@@ -74,12 +77,16 @@ SDL_LIBS ?= -lSDL2
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
 $(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o
-	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) -o $@
+	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 
 ifeq ($(TARGET),linux)
 $(BUILD)/libterrain.so: $(OBJECTS) $(BUILD)/src/render/terrain.o
-	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) -o $@
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 .PHONY: graphics-reference
 graphics-reference: $(BUILD)/libterrain.so
 	python3 tests/graphics.py $<
 endif
+
+.PHONY: packaging-test
+packaging-test:
+	python3 tests/packaging.py

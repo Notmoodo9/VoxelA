@@ -25,6 +25,9 @@ SHIM cache_edit
 SHIM face_neighbor
 SHIM mesh_build
 SHIM faces_expand
+SHIM camera_init
+SHIM camera_resize
+SHIM camera_step
 SHIM mix64
 SHIM fnv1a
 SHIM seed_numeric
@@ -44,4 +47,31 @@ SHIM generate_section
 SHIM arena_init
 SHIM arena_alloc
 SHIM arena_reset
+ ; MS-ABI core calls float-only CRT helpers via these Linux test adapters.
+ ; Preserve registers volatile in SysV but nonvolatile in Microsoft x64.
+%macro MATH_SHIM 1
+ global win_ %+ %1
+ extern %1
+ win_ %+ %1:
+ push rdi
+ push rsi
+ sub rsp,168
+ %assign i 6
+ %rep 10
+  movdqu [rsp+(i-6)*16],xmm %+ i
+  %assign i i+1
+ %endrep
+ call %1 wrt ..plt
+ %assign i 6
+ %rep 10
+  movdqu xmm %+ i,[rsp+(i-6)*16]
+  %assign i i+1
+ %endrep
+ add rsp,168
+ pop rsi
+ pop rdi
+ ret
+%endmacro
+MATH_SHIM sinf
+MATH_SHIM cosf
 section .note.GNU-stack noalloc noexec nowrite progbits

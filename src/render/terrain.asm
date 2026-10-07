@@ -2,7 +2,7 @@
 %include "gl.inc"
 section .text
 extern SDL_GL_GetProcAddress, puts
-extern generate_section, mesh_build, faces_expand
+extern generate_section, mesh_build, faces_expand, camera_init, camera_step, camera_resize
 ; Single context/render-thread owner. Embedded GLSL, static bounded demo buffers.
 ; compile_shader(type,source)->shader handle or 0 with diagnostic log.
 FRAME compile_shader,72
@@ -43,6 +43,8 @@ END_FRAME compile_shader,72
 ; Generates a 2x2 surface-section grid, omits faces against loaded neighbors,
 ; expands records into CCW colored triangles, creates shaders/VAO/VBO.
 FRAME terrain_init,120
+ lea A0,[camera_state]
+ call camera_init
  mov qword [rsp+64],0
 .load:
  mov r10,[rsp+64]
@@ -104,6 +106,27 @@ FRAME terrain_init,120
  CCALL puts
  jmp .fail
 .generate:
+ mov r10d,[program]
+ mov A0,r10
+ lea A1,[pan_name]
+ GLCALL glGetUniformLocation
+ mov [pan_location],eax
+ test eax,eax
+ js .fail
+ mov r10d,[program]
+ mov A0,r10
+ lea A1,[turn_name]
+ GLCALL glGetUniformLocation
+ mov [turn_location],eax
+ test eax,eax
+ js .fail
+ mov r10d,[program]
+ mov A0,r10
+ lea A1,[lens_name]
+ GLCALL glGetUniformLocation
+ mov [lens_location],eax
+ test eax,eax
+ js .fail
  mov qword [rsp+64],0
 .section:
  mov rax,[rsp+64]
@@ -257,6 +280,21 @@ FRAME terrain_draw,40
  mov r10d,[program]
  mov A0,r10
  GLCALL glUseProgram
+ mov r10d,[pan_location]
+ mov A0,r10
+ mov A1,1
+ lea A2,[camera_state]
+ GLCALL glUniform3fv
+ mov r10d,[turn_location]
+ mov A0,r10
+ mov A1,1
+ lea A2,[camera_state+24]
+ GLCALL glUniform2fv
+ mov r10d,[lens_location]
+ mov A0,r10
+ mov A1,1
+ lea A2,[camera_state+16]
+ GLCALL glUniform2fv
  mov r10d,[vao]
  mov A0,r10
  GLCALL glBindVertexArray
@@ -307,7 +345,23 @@ FRAME terrain_shutdown,40
 .done:
  xor eax,eax
 END_FRAME terrain_shutdown,40
+; Shared camera adapters for the UI and graphics tests.
+FRAME terrain_camera_step,40
+ mov A2,A1
+ mov A1,A0
+ lea A0,[camera_state]
+ call camera_step
+END_FRAME terrain_camera_step,40
+FRAME terrain_camera_resize,40
+ mov A2,A1
+ mov A1,A0
+ lea A0,[camera_state]
+ call camera_resize
+END_FRAME terrain_camera_resize,40
 section .rdata
+pan_name: db 'cameraPan',0
+turn_name: db 'cameraTurn',0
+lens_name: db 'cameraLens',0
 init_fail: db 'Terrain shader/geometry initialization failed.',0
 vertex_source: incbin 'assets/shaders/terrain.vert'
  db 0
@@ -316,6 +370,10 @@ fragment_source: incbin 'assets/shaders/terrain.frag'
 %include "gl_names.inc"
 section .bss align=16
 gl: resq GL_PROC_COUNT
+camera_state: resb 32
+pan_location: resd 1
+turn_location: resd 1
+lens_location: resd 1
 program: resd 1
 vertex_shader: resd 1
 fragment_shader: resd 1

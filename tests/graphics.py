@@ -24,6 +24,8 @@ geterror=bind(sdl,'SDL_GetError',[],C.c_char_p)
 render_init=bind(engine,'terrain_init',[],C.c_int64)
 draw=bind(engine,'terrain_draw',[],C.c_int64)
 shutdown=bind(engine,'terrain_shutdown',[],C.c_int64)
+camera_step=bind(engine,'terrain_camera_step',[C.c_uint64,C.c_uint64],C.c_int64)
+camera_resize=bind(engine,'terrain_camera_resize',[C.c_uint64,C.c_uint64],C.c_int64)
 compile_shader=bind(engine,'compile_shader',[C.c_uint,C.c_char_p],C.c_uint)
 def gl(name,args,result=None):
  p=getproc(name.encode());assert p,name
@@ -68,11 +70,25 @@ try:
   assert image[:4]==baseline[:4],'background corner overwritten'
   assert image[(300*800+400)*4:(300*800+400)*4+4]!=baseline[:4],'no terrain at center'
   captures.append(image)
+  assert camera_step(1|128|256,100)==0,'camera controls'
+  clear(0x4100);assert draw()==0
+  read(0,0,800,600,0x1908,0x1401,pixels)
+  moved=bytes(pixels)
+  assert moved!=image,'camera controls did not affect drawing'
+  assert camera_resize(0,600)==-1,'invalid camera aspect accepted'
+  clear(0x4100);assert draw()==0;read(0,0,800,600,0x1908,0x1401,pixels)
+  assert bytes(pixels)==moved,'invalid resize changed camera'
+  assert camera_resize(1600,800)==0,'camera resize'
+  clear(0x4100);assert draw()==0;read(0,0,800,600,0x1908,0x1401,pixels)
+  assert bytes(pixels)!=moved,'aspect resize did not affect drawing'
+  assert camera_resize(800,600)==0 and camera_step(2048,0)==0,'camera reset'
+  clear(0x4100);assert draw()==0;read(0,0,800,600,0x1908,0x1401,pixels)
+  assert bytes(pixels)==image,'reset did not restore original image'
   assert shutdown()==0 and shutdown()==0,'idempotent shutdown'
   assert error()==0,'cleanup GL error'
  assert captures[0]==captures[1],'renderer rebuild changed image'
  if len(sys.argv)>2:png(sys.argv[2],captures[0],800,600)
- print(f'PASS: terrain shaders, upload, full framebuffer ({changed} terrain pixels), rebuild, invalid-shader rejection and idempotent cleanup')
+ print(f'PASS: terrain shaders, upload, full framebuffer ({changed} terrain pixels), camera controls/aspect/reset, rebuild, invalid-shader rejection and idempotent cleanup')
 finally:
  if ctx:
   shutdown();del_context(ctx)

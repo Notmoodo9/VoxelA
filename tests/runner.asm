@@ -1,5 +1,6 @@
 %include "abi.inc"
 section .text
+extern camera_init, camera_step, camera_resize
 extern cache_init, cache_insert, cache_get, cache_edit, mesh_build, faces_expand
 extern mix64, floor_section, local_axis, block_index, world_in_bounds
 extern seed_numeric, section_set, section_get, block_flags, noise2, puts, generate_section, fnv1a
@@ -164,6 +165,28 @@ FRAME main,40
  lea A2,[vertex_target]
  call faces_expand
  CHECK rax,-2
+ lea A0,[camera]
+ call camera_init
+ CHECK rax,0
+ CHECK dword [camera+16],0x41b00000
+ lea A0,[camera]
+ mov A1,1
+ mov A2,100
+ call camera_step
+ CHECK rax,0
+ cmp dword [camera],0
+ je .fail
+ lea A0,[camera]
+ mov A1,2048
+ xor A2,A2
+ call camera_step
+ CHECK rax,0
+ CHECK dword [camera],0
+ lea A0,[camera]
+ mov A1,1920
+ mov A2,1080
+ call camera_resize
+ CHECK rax,0
  lea A0,[pass]
  call puts
  xor eax,eax
@@ -175,7 +198,7 @@ FRAME main,40
 .done:
 END_FRAME main,40
 section .rdata
-pass: db 'PASS: 35 assembly engine checks',0
+pass: db 'PASS: 42 assembly engine checks',0
 fail: db 'FAIL: assembly engine check',0
 max_seed: db '18446744073709551615',0
 overflow_seed: db '18446744073709551616',0
@@ -196,4 +219,5 @@ cache: resb 24
 entries: resb 128
 faces: resb 96
 expanded_vertices: resb 144
+camera: resb 32
 ELF_STACK

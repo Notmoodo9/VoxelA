@@ -3,6 +3,8 @@ section .text
 extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
+extern SDL_GetKeyboardState
+extern terrain_camera_step, terrain_camera_resize
 extern SDL_GL_SwapWindow, SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, terrain_init, terrain_draw, terrain_shutdown
 ; Seeded terrain viewer. --smoke renders 3 terrain frames and verifies RGBA.
@@ -108,6 +110,8 @@ FRAME main,120
  jnz .pixel_error
  call SDL_GetTicks
  mov [start_tick],eax
+ mov [previous_tick],eax
+ mov byte [focused],1
 .loop:
  cmp qword [rsp+80],0
  je .poll
@@ -122,12 +126,56 @@ FRAME main,120
  jz .render
  cmp dword [event],0x100
  je .success
+ cmp dword [event],0x200
+ jne .keyboard
+ cmp byte [event+12],13
+ jne .focus_gain
+ mov byte [focused],0
+ jmp .loop
+.focus_gain:
+ cmp byte [event+12],12
+ jne .loop
+ mov byte [focused],1
+ jmp .loop
+.keyboard:
  cmp dword [event],0x300
  jne .loop
  cmp dword [event+20],27
  je .success
  jmp .loop
 .render:
+ call SDL_GetTicks
+ mov r10d,eax
+ sub r10d,[previous_tick]
+ mov [previous_tick],eax
+ mov [elapsed],r10d
+ cmp qword [rsp+80],0
+ jne .view_size
+ cmp byte [focused],0
+ je .view_size
+ xor A0,A0
+ call SDL_GetKeyboardState
+ mov r10,rax
+ xor r11d,r11d
+ xor r9d,r9d
+ lea r8,[keymap]
+.keys:
+ movzx ecx,word [r8+r9*4]
+ cmp byte [r10+rcx],0
+ je .next_key
+ movzx eax,word [r8+r9*4+2]
+ or r11,rax
+.next_key:
+ inc r9
+ cmp r9,12
+ jb .keys
+ mov A0,r11
+ mov r10d,[elapsed]
+ mov A1,r10
+ call terrain_camera_step
+ test rax,rax
+ jnz .pixel_error
+.view_size:
  mov A0,[rsp+64]
  lea A1,[rsp+96]
  lea A2,[rsp+100]
@@ -136,6 +184,13 @@ FRAME main,120
  jle .wait
  cmp dword [rsp+100],0
  jle .wait
+ mov r10d,[rsp+96]
+ mov A0,r10
+ mov r10d,[rsp+100]
+ mov A1,r10
+ call terrain_camera_resize
+ test rax,rax
+ jnz .pixel_error
  xor A0,A0
  xor A1,A1
  mov A2,0
@@ -266,7 +321,7 @@ FRAME main,120
 END_FRAME main,120
 section .rdata
 smoke_arg: db '--smoke',0
-title: db 'VoxelA seeded terrain viewer (Escape to exit)',0
+title: db 'VoxelA: WASD move, Space/Ctrl height, Q/E turn, +/- zoom, R reset, Esc exit',0
 usage: db 'Usage: voxela-window [--smoke]',0
 startup_fail: db 'SDL/OpenGL startup failed (requires OpenGL 3.3 core).',0
 pixel_fail: db 'FAIL: OpenGL frame/readback check',0
@@ -283,6 +338,8 @@ blue: dd 0.5
 alpha: dd 1.0
 align 4
 proc_names: dd p0-proc_names,p1-proc_names,p2-proc_names,p3-proc_names,p4-proc_names
+align 2
+keymap: dw 26,1,22,2,4,4,7,8,44,16,224,32,20,64,8,128,46,256,45,512,225,1024,21,2048
 hex_digits: db '0123456789abcdef'
 section .data
 pixel_text: db '00000000',0
@@ -291,4 +348,7 @@ procs: resq 5
 event: resb 56
 pixel: resb 4
 start_tick: resd 1
+previous_tick: resd 1
+elapsed: resd 1
+focused: resb 1
 ELF_STACK

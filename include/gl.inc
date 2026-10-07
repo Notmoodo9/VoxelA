@@ -23,7 +23,10 @@
 %define glDrawArrays 176
 %define glEnable 184
 %define glGetError 192
-%define GL_PROC_COUNT 25
+%define glGetUniformLocation 200
+%define glUniform3fv 208
+%define glUniform2fv 216
+%define GL_PROC_COUNT 28
 %macro GLCALL 1
  call [gl+%1]
 %endmacro
