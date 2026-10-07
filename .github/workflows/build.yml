@@ -13,6 +13,9 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nasm gcc make binutils python3 libsdl2-dev libgl1-mesa-dri xvfb xauth
       - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window
       - run: ./build/linux/${{ matrix.config }}/voxela
+      - run: xvfb-run -a make CONFIG=${{ matrix.config }} graphics-reference
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
       - run: xvfb-run -a ./build/linux/${{ matrix.config }}/voxela-window --smoke
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"

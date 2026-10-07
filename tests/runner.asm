@@ -1,6 +1,6 @@
 %include "abi.inc"
 section .text
-extern cache_init, cache_insert, cache_get, cache_edit, mesh_build
+extern cache_init, cache_insert, cache_get, cache_edit, mesh_build, faces_expand
 extern mix64, floor_section, local_axis, block_index, world_in_bounds
 extern seed_numeric, section_set, section_get, block_flags, noise2, puts, generate_section, fnv1a
 %macro CHECK 2
@@ -149,6 +149,21 @@ FRAME main,40
  mov A3,11
  call mesh_build
  CHECK rax,-2
+ lea r10,[expanded_vertices]
+ mov [vertex_target],r10
+ lea A0,[faces]
+ mov A1,1
+ lea A2,[vertex_target]
+ call faces_expand
+ CHECK rax,6
+ cmp dword [expanded_vertices],0
+ jne .fail
+ mov qword [vertex_target+8],5
+ lea A0,[faces]
+ mov A1,1
+ lea A2,[vertex_target]
+ call faces_expand
+ CHECK rax,-2
  lea A0,[pass]
  call puts
  xor eax,eax
@@ -160,7 +175,7 @@ FRAME main,40
 .done:
 END_FRAME main,40
 section .rdata
-pass: db 'PASS: 32 assembly engine checks',0
+pass: db 'PASS: 35 assembly engine checks',0
 fail: db 'FAIL: assembly engine check',0
 max_seed: db '18446744073709551615',0
 overflow_seed: db '18446744073709551616',0
@@ -171,10 +186,14 @@ coords_edge: dq 1874999,15,-1875000
 cache_coords: dq 0,4,0
 world_coords: dq 0,64,0
 unloaded_coords: dq 32,64,0
+section .data align=8
+vertex_target: dq 0,6
+ dd 0,0,0,0
 section .bss align=16
 seed_out: resq 1
 blocks: resb 8192
 cache: resb 24
 entries: resb 128
 faces: resb 96
+expanded_vertices: resb 144
 ELF_STACK

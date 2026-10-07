@@ -10,11 +10,17 @@ default rel
  %define A1 rdx
  %define A2 r8
  %define A3 r9
+ %define A4 qword [rsp+32]
+ %define A5 qword [rsp+40]
+ %define A6 qword [rsp+48]
 %else
  %define A0 rdi
  %define A1 rsi
  %define A2 rdx
  %define A3 rcx
+ %define A4 r8
+ %define A5 r9
+ %define A6 qword [rsp]
 %endif
 ; Only volatile integer registers and XMM0-5 may be clobbered.
 ; FRAME supplies aligned storage including Windows shadow space.
@@ -42,6 +48,14 @@ default rel
  dd %1 %+ _end wrt ..imagebase
  dd %1 %+ _unwind wrt ..imagebase
  section .text
+%endif
+%endmacro
+; Position-independent calls to external shared-library functions.
+%macro CCALL 1
+%ifidn __OUTPUT_FORMAT__,elf64
+ call %1 wrt ..plt
+%else
+ call %1
 %endif
 %endmacro
 %macro ELF_STACK 0

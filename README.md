@@ -2,12 +2,12 @@
 
 VoxelA is a planned voxel sandbox game written in assembly. The goal is a massive, explorable world with blocks, entities, chunk rendering, reproducible procedural terrain, biomes, and both creative and survival modes.
 
-This repository contains an assembly engine foundation and the remaining game plan. The current executable is a headless terrain-generation demonstration, not a playable game. Implemented capabilities and build commands are listed below; unchecked roadmap items remain outstanding.
+This repository contains an assembly engine foundation and the remaining game plan. The default executable is a headless terrain-generation demonstration. The optional window executable now renders seeded voxel terrain with a fixed camera; it is not yet a playable game. Implemented capabilities and build commands are listed below; unchecked roadmap items remain outstanding.
 
 
 ## Current implementation and build instructions
 
-All engine implementation is NASM assembly. Python is used only for independent test references. The headless core has no SDL/OpenGL dependency. An optional graphics bootstrap uses SDL2 and OpenGL 3.3.
+CPU engine implementation is NASM assembly; GPU shaders use GLSL. Python is used only for independent tests and framebuffer capture. The headless core has no SDL/OpenGL dependency. An optional graphics bootstrap uses SDL2 and OpenGL 3.3.
 
 Implemented:
 
@@ -17,7 +17,8 @@ Implemented:
 - Signed section/local-coordinate mapping, index and world-bound checks, validated 16-bit block access, and initial solidity/opacity/breakability flags.
 - Global fixed-point quintic 2D value noise, climate-based biome classification, and reproducible section generation.
 - A bounded section cache with validated insertion, loaded/unloaded/out-of-bounds lookup, data revisions, and neighbor mesh invalidation on arrival and boundary edits.
-- Neighbor-aware exposed-face extraction with opaque/cutout visibility rules, count queries, and capacity-checked output. These are CPU face records, not GPU vertex/index meshes.
+- Neighbor-aware exposed-face extraction with opaque/cutout visibility rules, count queries, and capacity-checked output. CPU face records expand into counterclockwise colored triangles for GPU upload.
+- An optional seeded terrain viewer with GLSL shaders, VAO/VBO upload, depth testing, and a 2×2 surface-section grid. It currently uses block colors instead of textures.
 - An optional SDL2 window and OpenGL 3.3 core context with resize-aware drawable dimensions, Escape/close handling, staged error cleanup, and a three-frame pixel-readback smoke check.
 
 Generator **prototype v0** produces heights 64–79, bedrock, stone, surface dirt/grass or desert sand, and air. Forest and mountain biome IDs exist, but trees, caves, distinct mountain heights, blended biome profiles, and generator save/version compatibility are unfinished. This prototype must not be treated as the final version-1 world format.
@@ -47,7 +48,7 @@ make TARGET=windows TOOLCHAIN_PREFIX=x86_64-w64-mingw32- build/windows/debug/eng
 
 Cross-linked executables require a Windows runtime to execute. `NASM=/path/to/nasm` and `LINKER=/path/to/gcc` can override tool locations. Outputs are separated by platform and debug/release configuration. Use `make clean` after changing toolchain or assembler options. `make objects TARGET=windows` checks COFF assembly without needing a linker.
 
-`make test` runs 32 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks over 133,000 assertions against independently implemented integer references, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
+`make test` runs 35 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks over 133,000 assertions against independently implemented integer references, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
 
 ### Optional graphics bootstrap
 
@@ -61,11 +62,17 @@ make window
 
 On Windows, install `mingw-w64-ucrt-x86_64-SDL2` in MSYS2 UCRT64, use `make TARGET=windows window`, and put the matching `SDL2.dll` beside the executable for standalone execution. Within UCRT64 its library directory is normally already on PATH. The optional target shares assembly source across platforms, but native Windows graphics execution remains unverified.
 
-The window currently clears a solid color; it does **not** display voxel terrain. Escape or closing the window exits normally. `--smoke` verifies three frames by reading RGBA pixels and checking OpenGL errors; closing before validation or exceeding a five-second smoke deadline is a failure. On a Linux machine supporting SDL's offscreen driver, use `SDL_VIDEODRIVER=offscreen` for smoke validation. A driver without OpenGL 3.3 produces an initialization failure instead of a false success. Software-rendered smoke checks validate the pipeline, not hardware performance.
+The window displays four adjacent generated surface sections, covering X/Z 0–31 and Y 64–79 for seed 42, using an orthographic fixed camera. Neighbor faces are culled across the loaded section boundaries. This bounded terrain slab is a renderer demonstration, not a streamed world. Texture mapping, dynamic camera controls, aspect-correct projection on resize, and gameplay are unfinished. Escape or closing the window exits normally. `--smoke` verifies three frames by reading a terrain pixel, rejecting the background color, and checking OpenGL errors; closing before validation or exceeding a five-second smoke deadline is a failure. On a Linux machine supporting SDL's offscreen driver, use `SDL_VIDEODRIVER=offscreen` for smoke validation. A driver without OpenGL 3.3 produces an initialization failure instead of a false success. Software-rendered smoke checks validate the pipeline, not hardware performance.
 
 `tests/chunks.py` independently checks all 24,576 cell/face neighbor mappings, exact face records for isolated blocks, mixed materials and random sections, neighboring-section occlusion, canaries, invalid IDs, capacity failures, lookup statuses, revision overflow, and neighbor invalidation. It runs under both `reference` and `abi-reference`.
 
-Mesh records are 8 bytes: unsigned local X/Y/Z and direction bytes at 0/1/2/3, little-endian uint16 block ID at 4, and zero uint16 reserved at 6. Records are emitted in cell index order, then direction order. Input and output buffers must not overlap, and callers must hold an immutable snapshot throughout counting and emission. Lighting/AO, vertex winding, texture UVs, greedy merging, and GPU upload are still future work.
+Mesh records are 8 bytes: unsigned local X/Y/Z and direction bytes at 0/1/2/3, little-endian uint16 block ID at 4, and zero uint16 reserved at 6. Records are emitted in cell index order, then direction order. Input and output buffers must not overlap, and callers must hold an immutable snapshot throughout counting and emission. Vertex expansion uses six CCW vertices per face, each containing float32 X/Y/Z/R/G/B (24 bytes), with directional face shading. Texture UVs, propagated lighting/AO, greedy merging, and index-buffer optimization are still future work.
+
+`tests/vertices.py` independently verifies coordinates, all outward triangle normals, float32 colors, canaries, invalid records, origin limits, and capacity handling under both calling conventions. `faces_expand` limits one input batch to 24,576 faces and relative origins to ±1,048,576 blocks; the future camera must rebase distant world coordinates before expansion.
+
+On Linux, `make graphics-reference` builds a test library and runs `tests/graphics.py` with the same SDL libraries. Run it with an available driver (offscreen or Xvfb). The test compares the full framebuffer to a background-only frame, verifies terrain coverage, repeats renderer initialization/drawing/shutdown, and checks identical images and idempotent cleanup. It intentionally compiles an invalid shader and requires rejection; its expected compiler diagnostic is not a failing test. An optional second argument to the test script writes a PNG capture from actual OpenGL readback. Shader source files are embedded at assembly time, so the current viewer has no external asset-path dependency. A shader compile/link failure prints its log and fails startup.
+
+![Actual terrain viewer readback](docs/terrain-preview.png)
 
 ### Available core interfaces
 
@@ -88,11 +95,12 @@ Every function follows the selected native ABI and may clobber volatile register
 | `cache_edit(header,entry,index,id)`, `cache_touch_neighbors(header,entry)` | Edit increments revision only on changes, rejects overflow, invalidates boundary neighbors; touch invalidates all face-sharing neighbors |
 | `face_neighbor(index,direction)` | Directions -X/+X/-Y/+Y/-Z/+Z; returns local index or 4096 OR remapped neighbor index, invalid returns -1 |
 | `mesh_build(section,neighbors,out,capacity)` | Six section pointers in direction order (NULL means absent); returns face count, -1 invalid IDs, -2 insufficient capacity; NULL output counts only |
+| `faces_expand(records,count,target)` | Returns 6 × face count, -1 invalid records/origin, -2 capacity; target holds output pointer, vertex capacity, and signed int32 relative X/Y/Z origins at offsets 0/8/16/20/24 |
 | `generate_section(buffer,seed,coords)` | coords is three signed int64 section axes X/Y/Z; writes all 4096 cells; invalid axes return -1 without writes |
 
 For `lattice`, compute `mix64(seed XOR (x * 0xd6e8feb86659fd93) XOR (z * 0xa5a3564e27f8862f)) >> 48`, with modulo-2^64 arithmetic. Noise uses floor-divided global lattice positions and signed interpolation rounding toward negative infinity. Quintic multiplication rounds after each specified product; `tests/reference.py` defines an independent exact reference for prototype fixtures. Blocks use IDs air=0, stone=1, dirt=2, grass=3, sand=4, wood=5, leaves=6, bedrock=7.
 
-Remaining first-playable work starts with expanding face records into GPU vertex/index meshes, terrain shaders and draw calls, streaming lifecycle, camera/player movement, and block interaction. The section cache currently has linear lookup and no eviction, save integration, or asynchronous jobs. Entities, survival rules, saving, UI, and audio are still unimplemented.
+Remaining first-playable work starts with a movable camera, texture atlas, streaming lifecycle, player movement, and block interaction. The section cache currently has linear lookup and no eviction, save integration, or asynchronous jobs. Entities, survival rules, saving, UI, and audio are still unimplemented.
 
 ## Initial technical direction
 

@@ -26,7 +26,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -46,6 +46,7 @@ $(BUILD)/libvoxela.so: $(OBJECTS)
 reference: $(BUILD)/libvoxela.so
 	python3 tests/reference.py $(BUILD)/libvoxela.so
 	python3 tests/chunks.py $(BUILD)/libvoxela.so
+	python3 tests/vertices.py $(BUILD)/libvoxela.so
 endif
 clean:
 	rm -rf build
@@ -64,11 +65,21 @@ $(BUILD)/libwindows_abi.so: $(WIN_ABI_OBJECTS) $(BUILD)/tests/windows_abi_shim.o
 abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/reference.py $<
 	python3 tests/chunks.py $<
+	python3 tests/vertices.py $<
 endif
 
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
 SDL_LIBS ?= -lSDL2
 .PHONY: window
 window: $(BUILD)/voxela-window$(EXT)
-$(BUILD)/voxela-window$(EXT): $(BUILD)/src/platform/window.o
+$(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
+$(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o
 	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) -o $@
+
+ifeq ($(TARGET),linux)
+$(BUILD)/libterrain.so: $(OBJECTS) $(BUILD)/src/render/terrain.o
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) -o $@
+.PHONY: graphics-reference
+graphics-reference: $(BUILD)/libterrain.so
+	python3 tests/graphics.py $<
+endif

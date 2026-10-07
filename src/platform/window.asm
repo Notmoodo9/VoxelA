@@ -1,20 +1,11 @@
 %include "abi.inc"
-%ifdef WINDOWS_ABI
- %define A4 qword [rsp+32]
- %define A5 qword [rsp+40]
- %define A6 qword [rsp+48]
-%else
- %define A4 r8
- %define A5 r9
- %define A6 qword [rsp]
-%endif
 section .text
 extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
 extern SDL_GL_SwapWindow, SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
-extern puts, strcmp
-; Optional graphics bootstrap. --smoke renders 3 frames and verifies RGBA.
+extern puts, strcmp, terrain_init, terrain_draw, terrain_shutdown
+; Seeded terrain viewer. --smoke renders 3 terrain frames and verifies RGBA.
 ; Platform ABI and explicit 7-argument calls; OpenGL functions loaded via SDL.
 FRAME main,120
  mov qword [rsp+64],0 ; window
@@ -52,6 +43,11 @@ FRAME main,120
  jnz .error
  mov A0,21
  mov A1,1
+ call SDL_GL_SetAttribute
+ test eax,eax
+ jnz .error
+ mov A0,6 ; depth buffer bits
+ mov A1,24
  call SDL_GL_SetAttribute
  test eax,eax
  jnz .error
@@ -107,6 +103,9 @@ FRAME main,120
  inc qword [rsp+96]
  cmp qword [rsp+96],5
  jb .proc
+ call terrain_init
+ test rax,rax
+ jnz .pixel_error
  call SDL_GetTicks
  mov [start_tick],eax
 .loop:
@@ -151,8 +150,11 @@ FRAME main,120
  movss xmm2,[blue]
  movss xmm3,[alpha]
  call [procs] ; clear color
- mov A0,0x4000
- call [procs+8] ; clear
+ mov A0,0x4100
+ call [procs+8] ; clear color/depth
+ call terrain_draw
+ test eax,eax
+ jnz .pixel_error
  cmp qword [rsp+80],0
  je .present
  mov r10d,[rsp+96]
@@ -168,20 +170,22 @@ FRAME main,120
  lea r10,[pixel]
  mov A6,r10
  call [procs+24] ; read pixels synchronizes readback
+ ; Reject the unchanged blue clear color; accept actual terrain shading.
+ cmp byte [pixel+3],255
+ jne .pixel_error
  movzx eax,byte [pixel]
  sub eax,30
  cmp eax,4
- ja .pixel_error
+ ja .terrain_pixel
  movzx eax,byte [pixel+1]
  sub eax,62
  cmp eax,4
- ja .pixel_error
+ ja .terrain_pixel
  movzx eax,byte [pixel+2]
  sub eax,126
  cmp eax,4
- ja .pixel_error
- cmp byte [pixel+3],255
- jne .pixel_error
+ jbe .pixel_error
+.terrain_pixel:
 .present:
  call [procs+32] ; glGetError
  test eax,eax
@@ -209,6 +213,25 @@ FRAME main,120
  mov qword [rsp+112],0
  jmp .cleanup
 .pixel_error:
+ ; Temporary diagnostic, retained to explain readback failures.
+ mov r9d,0
+ lea r10,[hex_digits]
+ lea r11,[pixel_text]
+.hex_pixel:
+ lea rax,[pixel]
+ movzx eax,byte [rax+r9]
+ mov r8d,eax
+ shr eax,4
+ mov al,[r10+rax]
+ mov [r11+r9*2],al
+ and r8d,15
+ mov r8b,[r10+r8]
+ mov [r11+r9*2+1],r8b
+ inc r9
+ cmp r9,4
+ jb .hex_pixel
+ lea A0,[pixel_text]
+ call puts
  lea A0,[pixel_fail]
  call puts
  jmp .cleanup
@@ -226,6 +249,7 @@ FRAME main,120
 .cleanup:
  cmp qword [rsp+72],0
  je .destroy_window
+ call terrain_shutdown
  mov A0,[rsp+72]
  call SDL_GL_DeleteContext
 .destroy_window:
@@ -242,11 +266,11 @@ FRAME main,120
 END_FRAME main,120
 section .rdata
 smoke_arg: db '--smoke',0
-title: db 'VoxelA graphics bootstrap (Escape to exit)',0
+title: db 'VoxelA seeded terrain viewer (Escape to exit)',0
 usage: db 'Usage: voxela-window [--smoke]',0
 startup_fail: db 'SDL/OpenGL startup failed (requires OpenGL 3.3 core).',0
 pixel_fail: db 'FAIL: OpenGL frame/readback check',0
-smoke_pass: db 'PASS: OpenGL 3.3 context, three rendered frames, RGBA readback',0
+smoke_pass: db 'PASS: OpenGL 3.3 context, three terrain frames, shader draw and RGBA readback',0
 p0: db 'glClearColor',0
 p1: db 'glClear',0
 p2: db 'glViewport',0
@@ -259,6 +283,9 @@ blue: dd 0.5
 alpha: dd 1.0
 align 4
 proc_names: dd p0-proc_names,p1-proc_names,p2-proc_names,p3-proc_names,p4-proc_names
+hex_digits: db '0123456789abcdef'
+section .data
+pixel_text: db '00000000',0
 section .bss align=16
 procs: resq 5
 event: resb 56

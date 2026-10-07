@@ -24,6 +24,7 @@ SHIM cache_insert
 SHIM cache_edit
 SHIM face_neighbor
 SHIM mesh_build
+SHIM faces_expand
 SHIM mix64
 SHIM fnv1a
 SHIM seed_numeric
