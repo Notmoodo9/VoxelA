@@ -3,6 +3,8 @@ section .text
 extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
+extern SDL_GetMouseState, SDL_GetWindowSize
+extern terrain_pick, terrain_apply_edit, terrain_select_block
 extern SDL_GetKeyboardState
 extern terrain_camera_step, terrain_camera_resize
 extern SDL_GL_SwapWindow, SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
@@ -131,6 +133,7 @@ FRAME main,120
  cmp byte [event+12],13
  jne .focus_gain
  mov byte [focused],0
+ mov byte [click_pending],0
  jmp .loop
 .focus_gain:
  cmp byte [event+12],12
@@ -138,10 +141,40 @@ FRAME main,120
  mov byte [focused],1
  jmp .loop
 .keyboard:
+ cmp qword [rsp+80],0
+ jne .loop
+ cmp byte [focused],0
+ je .loop
+ cmp dword [event],0x401
+ jne .key_event
+ movzx eax,byte [event+16]
+ cmp eax,1
+ je .break_block
+ cmp eax,3
+ jne .loop
+ mov byte [click_action],1
+ jmp .click
+.break_block:
+ mov byte [click_action],0
+.click:
+ mov byte [click_pending],1
+ mov eax,[event+20]
+ mov [click_x],eax
+ mov eax,[event+24]
+ mov [click_y],eax
+ jmp .loop
+.key_event:
  cmp dword [event],0x300
  jne .loop
  cmp dword [event+20],27
  je .success
+ mov eax,[event+20]
+ sub eax,49
+ cmp eax,5
+ ja .loop
+ inc eax
+ mov A0,rax
+ call terrain_select_block
  jmp .loop
 .render:
  call SDL_GetTicks
@@ -191,6 +224,44 @@ FRAME main,120
  call terrain_camera_resize
  test rax,rax
  jnz .pixel_error
+ cmp qword [rsp+80],0
+ jne .viewport
+ cmp byte [focused],0
+ je .viewport
+ mov A0,[rsp+64]
+ lea A1,[logical_width]
+ lea A2,[logical_height]
+ call SDL_GetWindowSize
+ lea A0,[mouse_x]
+ lea A1,[mouse_y]
+ call SDL_GetMouseState
+ cmp byte [click_pending],0
+ je .pick
+ mov eax,[click_x]
+ mov [mouse_x],eax
+ mov eax,[click_y]
+ mov [mouse_y],eax
+.pick:
+ movsxd A0,dword [mouse_x]
+ movsxd A1,dword [mouse_y]
+ mov A2,0
+ mov A3,0
+ mov r10d,[logical_width]
+ mov A2,r10
+ mov r10d,[logical_height]
+ mov A3,r10
+ call terrain_pick
+ cmp rax,-1
+ je .pixel_error
+ cmp byte [click_pending],0
+ je .viewport
+ mov byte [click_pending],0
+ movzx eax,byte [click_action]
+ mov A0,rax
+ call terrain_apply_edit
+ cmp rax,-1
+ je .pixel_error
+.viewport:
  xor A0,A0
  xor A1,A1
  mov A2,0
@@ -321,7 +392,7 @@ FRAME main,120
 END_FRAME main,120
 section .rdata
 smoke_arg: db '--smoke',0
-title: db 'VoxelA: WASD move, Space/Ctrl height, Q/E turn, +/- zoom, R reset, Esc exit',0
+title: db 'VoxelA: WASD move, Space/Ctrl height, Q/E turn, +/- zoom, R reset, mouse break/place, 1-6 blocks, Esc exit',0
 usage: db 'Usage: voxela-window [--smoke]',0
 startup_fail: db 'SDL/OpenGL startup failed (requires OpenGL 3.3 core).',0
 pixel_fail: db 'FAIL: OpenGL frame/readback check',0
@@ -351,4 +422,12 @@ start_tick: resd 1
 previous_tick: resd 1
 elapsed: resd 1
 focused: resb 1
+click_pending: resb 1
+click_action: resb 1
+mouse_x: resd 1
+mouse_y: resd 1
+click_x: resd 1
+click_y: resd 1
+logical_width: resd 1
+logical_height: resd 1
 ELF_STACK

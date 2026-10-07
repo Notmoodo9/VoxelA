@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -49,6 +49,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/chunks.py $(BUILD)/libvoxela.so
 	python3 tests/vertices.py $(BUILD)/libvoxela.so
 	python3 tests/camera.py $(BUILD)/libvoxela.so
+	python3 tests/raycast.py $(BUILD)/libvoxela.so
 endif
 clean:
 	rm -rf build
@@ -69,6 +70,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/chunks.py $<
 	python3 tests/vertices.py $<
 	python3 tests/camera.py $<
+	python3 tests/raycast.py $<
 endif
 
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.

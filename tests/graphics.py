@@ -27,6 +27,12 @@ shutdown=bind(engine,'terrain_shutdown',[],C.c_int64)
 camera_step=bind(engine,'terrain_camera_step',[C.c_uint64,C.c_uint64],C.c_int64)
 camera_resize=bind(engine,'terrain_camera_resize',[C.c_uint64,C.c_uint64],C.c_int64)
 compile_shader=bind(engine,'compile_shader',[C.c_uint,C.c_char_p],C.c_uint)
+pick=bind(engine,'terrain_pick',[C.c_uint64]*4,C.c_int64)
+selection=bind(engine,'terrain_get_selection',[C.c_void_p],C.c_int64)
+select_block=bind(engine,'terrain_select_block',[C.c_uint64],C.c_int64)
+apply_edit=bind(engine,'terrain_apply_edit',[C.c_uint64],C.c_int64)
+edit_cell=bind(engine,'terrain_edit_cell',[C.c_void_p,C.c_uint64],C.c_int64)
+get_block=bind(engine,'terrain_get_block',[C.c_void_p,C.c_void_p],C.c_int64)
 def gl(name,args,result=None):
  p=getproc(name.encode());assert p,name
  return C.CFUNCTYPE(result,*args)(p)
@@ -84,11 +90,51 @@ try:
   assert camera_resize(800,600)==0 and camera_step(2048,0)==0,'camera reset'
   clear(0x4100);assert draw()==0;read(0,0,800,600,0x1908,0x1401,pixels)
   assert bytes(pixels)==image,'reset did not restore original image'
+  def capture():
+   clear(0x4100);assert draw()==0
+   read(0,0,800,600,0x1908,0x1401,pixels)
+   assert error()==0
+   return bytes(pixels)
+  hit=(C.c_int64*9)()
+  assert pick(400,300,800,600)==1 and selection(hit)==1,'center picking'
+  original=hit[8];cell=(C.c_int64*3)(*hit[:3])
+  assert 0<=cell[0]<32 and 64<=cell[1]<80 and 0<=cell[2]<32
+  assert capture()!=image,'selection outline missing'
+  assert apply_edit(0)==1,'break selected block'
+  value=C.c_uint16(65535)
+  assert get_block(cell,C.byref(value))==0 and value.value==0
+  assert capture()!=image,'break did not rebuild mesh'
+  assert apply_edit(0)==0,'stale selection accepted'
+  assert edit_cell(cell,original)==1 and capture()==image,'restore mesh'
+  assert edit_cell(cell,original)==0,'same-value edit'
+  assert select_block(0)==-1 and select_block(7)==-1
+  assert select_block(3)==0
+  assert pick(400,300,800,600)==1 and selection(hit)==1
+  adjacent=(C.c_int64*3)(*hit[5:8])
+  assert apply_edit(1)==1,'placement'
+  assert get_block(adjacent,C.byref(value))==0 and value.value==3
+  assert capture()!=image,'placement did not rebuild mesh'
+  assert camera_step(2048,0)==0
+  assert get_block(adjacent,C.byref(value))==0 and value.value==3,'camera reset erased edits'
+  assert edit_cell(adjacent,0)==1 and capture()==image
+  for coords in [(32,72,0),(0,63,0),(-1,72,0)]:
+   assert edit_cell((C.c_int64*3)(*coords),1)==0,'unloaded edit accepted'
+  # Four-way section seam: edits on either side must restore identical geometry.
+  for coords in [(15,72,15),(16,72,15),(15,72,16),(16,72,16)]:
+   seam=(C.c_int64*3)(*coords)
+   assert get_block(seam,C.byref(value))==0
+   saved=value.value;replacement=0 if saved else 1
+   assert edit_cell(seam,replacement)==1
+   capture()
+   assert edit_cell(seam,saved)==1 and capture()==image
+  assert pick(0,0,800,600)==0 and selection(hit)==0
+  assert pick(400,300,0,600)==-1
+  assert apply_edit(2)==-1 and capture()==image
   assert shutdown()==0 and shutdown()==0,'idempotent shutdown'
   assert error()==0,'cleanup GL error'
  assert captures[0]==captures[1],'renderer rebuild changed image'
  if len(sys.argv)>2:png(sys.argv[2],captures[0],800,600)
- print(f'PASS: terrain shaders, upload, full framebuffer ({changed} terrain pixels), camera controls/aspect/reset, rebuild, invalid-shader rejection and idempotent cleanup')
+ print(f'PASS: terrain shaders, upload, full framebuffer ({changed} terrain pixels), camera controls/aspect/reset, picking/outline/edit mesh rebuild, invalid-shader rejection and idempotent cleanup')
 finally:
  if ctx:
   shutdown();del_context(ctx)

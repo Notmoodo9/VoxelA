@@ -25,8 +25,8 @@ default rel
 ; Only volatile integer registers and XMM0-5 may be clobbered.
 ; FRAME supplies aligned storage including Windows shadow space.
 %macro FRAME 2
- %if %2 < 40 || %2 > 120 || (%2 % 16) != 8
-  %error FRAME requires 40..120 bytes, congruent to 8 modulo 16
+ %if %2 < 40 || %2 > 4088 || (%2 % 16) != 8
+  %error FRAME requires 40..4088 bytes, congruent to 8 modulo 16
  %endif
  global %1
  %1:
@@ -40,9 +40,15 @@ default rel
 %ifidn __OUTPUT_FORMAT__,win64
  section .xdata rdata align=4
  %1 %+ _unwind:
- db 1, %1 %+ _prolog_end - %1, 1, 0
- db %1 %+ _prolog_end - %1, (((%2 / 8) - 1) << 4) | 2
- dw 0
+ %if %2 <= 128
+  db 1, %1 %+ _prolog_end - %1, 1, 0
+  db %1 %+ _prolog_end - %1, (((%2 / 8) - 1) << 4) | 2
+  dw 0
+ %else
+  db 1, %1 %+ _prolog_end - %1, 2, 0
+  db %1 %+ _prolog_end - %1, 1 ; UWOP_ALLOC_LARGE, size in 8-byte units
+  dw %2 / 8
+ %endif
  section .pdata rdata align=4
  dd %1 wrt ..imagebase
  dd %1 %+ _end wrt ..imagebase

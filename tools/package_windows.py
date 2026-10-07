@@ -67,9 +67,10 @@ def package(viewer, headless, dll_dir, system_dir, license_dir, output, objdump,
             'VoxelA Windows x64 terrain viewer prototype\n'
             'Extract the complete archive, then run VoxelA.exe.\n'
             'Requires Windows 10/11 x64 and an OpenGL 3.3-capable graphics driver.\n'
+            'Mouse: left break, right place; 1-6: select block. Edits are not saved.\n'
             'WASD: pan; Space/Left Ctrl: height; Q/E: turn; +/-: zoom.\n'
             'Left Shift: faster movement; R: reset view; Escape: exit.\n'
-            'This is a terrain viewer; block editing and survival are unfinished.\n'
+            'This is a bounded editable terrain prototype; survival is unfinished.\n'
             'Keep the supplied DLLs beside the executable.\n'
             'VoxelA-headless.exe runs the terrain-generation demonstration.\n', encoding='utf-8')
         hashes = {str(p.relative_to(staging)).replace(os.sep, '/'):

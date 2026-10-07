@@ -1,5 +1,6 @@
 %include "abi.inc"
 section .text
+extern world_raycast
 extern camera_init, camera_step, camera_resize
 extern cache_init, cache_insert, cache_get, cache_edit, mesh_build, faces_expand
 extern mix64, floor_section, local_axis, block_index, world_in_bounds
@@ -187,6 +188,15 @@ FRAME main,40
  mov A2,1080
  call camera_resize
  CHECK rax,0
+ lea A0,[cache]
+ lea A1,[test_ray]
+ lea A2,[test_hit]
+ call world_raycast
+ CHECK rax,1
+ CHECK qword [test_hit],0
+ CHECK qword [test_hit+8],64
+ CHECK qword [test_hit+24],6
+ CHECK qword [test_hit+64],1
  lea A0,[pass]
  call puts
  xor eax,eax
@@ -198,7 +208,7 @@ FRAME main,40
 .done:
 END_FRAME main,40
 section .rdata
-pass: db 'PASS: 42 assembly engine checks',0
+pass: db 'PASS: 47 assembly engine checks',0
 fail: db 'FAIL: assembly engine check',0
 max_seed: db '18446744073709551615',0
 overflow_seed: db '18446744073709551616',0
@@ -206,6 +216,7 @@ align 8
 coords: dq -1,4,0
 coords_bedrock: dq 0,0,0
 coords_edge: dq 1874999,15,-1875000
+test_ray: dq 0.5,64.5,0.5,1.0,0.0,0.0,4.0
 cache_coords: dq 0,4,0
 world_coords: dq 0,64,0
 unloaded_coords: dq 32,64,0
@@ -220,4 +231,5 @@ entries: resb 128
 faces: resb 96
 expanded_vertices: resb 144
 camera: resb 32
+test_hit: resb 72
 ELF_STACK

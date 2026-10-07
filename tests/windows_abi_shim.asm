@@ -28,6 +28,9 @@ SHIM faces_expand
 SHIM camera_init
 SHIM camera_resize
 SHIM camera_step
+SHIM world_raycast
+SHIM ray_box_interval
+SHIM camera_ray
 SHIM mix64
 SHIM fnv1a
 SHIM seed_numeric

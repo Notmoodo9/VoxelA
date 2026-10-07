@@ -2,7 +2,7 @@
 
 VoxelA is a planned voxel sandbox game written in assembly. The goal is a massive, explorable world with blocks, entities, chunk rendering, reproducible procedural terrain, biomes, and both creative and survival modes.
 
-This repository contains an assembly engine foundation and the remaining game plan. The default executable is a headless terrain-generation demonstration. The optional window executable now renders seeded voxel terrain with a controllable spectator camera; it is not yet a playable game. Implemented capabilities and build commands are listed below; unchecked roadmap items remain outstanding.
+This repository contains an assembly engine foundation and the remaining game plan. The default executable is a headless terrain-generation demonstration. The optional window executable now renders seeded voxel terrain with a controllable spectator camera and block editing; it is not yet a playable game. Implemented capabilities and build commands are listed below; unchecked roadmap items remain outstanding.
 
 
 ## Current implementation and build instructions
@@ -19,6 +19,7 @@ Implemented:
 - A bounded section cache with validated insertion, loaded/unloaded/out-of-bounds lookup, data revisions, and neighbor mesh invalidation on arrival and boundary edits.
 - Neighbor-aware exposed-face extraction with opaque/cutout visibility rules, count queries, and capacity-checked output. CPU face records expand into counterclockwise colored triangles for GPU upload.
 - An optional seeded terrain viewer with GLSL shaders, VAO/VBO upload, depth testing, an orthographic spectator camera, and a 2×2 surface-section grid. It currently uses block colors instead of textures.
+- Assembly voxel DDA raycasting, screen-to-world orthographic rays, loaded-box clipping, a yellow block outline, and mouse editing with cache revisions and mesh rebuilds.
 - Shared assembly camera state with elapsed-time movement, normalized diagonal speed, yaw wrapping, bounded zoom, reset, and drawable aspect updates.
 - An optional SDL2 window and OpenGL 3.3 core context with resize-aware drawable dimensions, Escape/close handling, staged error cleanup, and a three-frame pixel-readback smoke check.
 
@@ -49,7 +50,7 @@ make TARGET=windows TOOLCHAIN_PREFIX=x86_64-w64-mingw32- build/windows/debug/eng
 
 Cross-linked executables require a Windows runtime to execute. `NASM=/path/to/nasm` and `LINKER=/path/to/gcc` can override tool locations. Outputs are separated by platform and debug/release configuration. Use `make clean` after changing toolchain or assembler options. `make objects TARGET=windows` checks COFF assembly without needing a linker.
 
-`make test` runs 42 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks over 135,000 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
+`make test` runs 47 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks over 146,000 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
 
 ### Optional graphics bootstrap
 
@@ -63,7 +64,7 @@ make window
 
 On Windows, install `mingw-w64-ucrt-x86_64-SDL2` in MSYS2 UCRT64, use `make TARGET=windows window`, and put the matching `SDL2.dll` beside the executable for standalone execution. Within UCRT64 its library directory is normally already on PATH. The optional target shares assembly source across platforms, but native Windows graphics execution remains unverified.
 
-The window displays four adjacent generated surface sections, covering X/Z 0–31 and Y 64–79 for seed 42, using a controllable orthographic spectator camera. Neighbor faces are culled across the loaded section boundaries. This bounded terrain slab is a renderer demonstration, not a streamed world. WASD pans relative to camera yaw; Space/Left Ctrl changes height; Q/E turns; +/- changes zoom; Left Shift increases speed; R resets the view; Escape exits. Movement pauses on focus loss. Resizing updates drawable aspect, and reset preserves that aspect. This is spectator movement without collision, not a creative/survival player controller. Texture mapping, mouse look, perspective projection, and gameplay are unfinished. Escape or closing the window exits normally. `--smoke` verifies three frames by reading a terrain pixel, rejecting the background color, and checking OpenGL errors; closing before validation or exceeding a five-second smoke deadline is a failure. On a Linux machine supporting SDL's offscreen driver, use `SDL_VIDEODRIVER=offscreen` for smoke validation. A driver without OpenGL 3.3 produces an initialization failure instead of a false success. Software-rendered smoke checks validate the pipeline, not hardware performance.
+The window displays four adjacent generated surface sections, covering X/Z 0–31 and Y 64–79 for seed 42, using a controllable orthographic spectator camera. Neighbor faces are culled across the loaded section boundaries. This bounded terrain slab is a renderer demonstration, not a streamed world. WASD pans relative to camera yaw; Space/Left Ctrl changes height; Q/E turns; +/- changes zoom; Left Shift increases speed; R resets the view; Escape exits. Mouse hover highlights a block; left click removes it and right click places the selected block in the adjacent empty cell. Keys 1–6 select stone, dirt, grass, sand, log, and leaves. Placement requires a loaded empty cell; bedrock cannot be removed. Edits last only until the viewer closes and do not change generation. Movement and editing pause on focus loss. Resizing updates drawable aspect, and reset preserves that aspect. This is spectator movement without collision, not a creative/survival player controller. Texture mapping, mouse look, perspective projection, and gameplay are unfinished. Escape or closing the window exits normally. `--smoke` verifies three frames by reading a terrain pixel, rejecting the background color, and checking OpenGL errors; closing before validation or exceeding a five-second smoke deadline is a failure. On a Linux machine supporting SDL's offscreen driver, use `SDL_VIDEODRIVER=offscreen` for smoke validation. A driver without OpenGL 3.3 produces an initialization failure instead of a false success. Software-rendered smoke checks validate the pipeline, not hardware performance.
 
 `tests/chunks.py` independently checks all 24,576 cell/face neighbor mappings, exact face records for isolated blocks, mixed materials and random sections, neighboring-section occlusion, canaries, invalid IDs, capacity failures, lookup statuses, revision overflow, and neighbor invalidation. It runs under both `reference` and `abi-reference`.
 
@@ -165,7 +166,7 @@ Completion check: blocks can be read and changed accurately across adjacent sect
 - [ ] Build meshes containing only exposed faces; update adjoining meshes after boundary edits.
 - [ ] Upload and release vertex/index buffers safely; keep graphics API operations on the context-owning thread.
 - [ ] Add view-distance limits and frustum culling.
-- [ ] Implement voxel raycasting, block highlighting, placement, and removal.
+- [x] Implement voxel raycasting, block highlighting, placement, and removal in the bounded viewer.
 - [ ] Separate transparent/cutout rendering from opaque meshes when those blocks are added.
 - [ ] Add greedy meshing or equivalent mesh reduction after the basic path is correct.
 
@@ -424,3 +425,11 @@ Windows PE executables cross-link successfully, and the core has been tested thr
 - [ ] Keep every earlier roadmap completion check as a gate. Finish platform/build contracts before shared modules; storage and deterministic generation before streaming; editing transactions and persistence before claiming mode completion.
 
 The first playable milestone must build and run on both Windows and Linux. It may use a bounded synchronous chunk-loading path initially, but must render several chunks, demonstrate repeatable seeded biomes, move a collision-aware player, and allow creative block edits. Survival, asynchronous streaming, durable saves, full lighting, and optimization remain subsequent gates.
+
+### Block interaction contracts
+
+`world_raycast(cache,ray,hit)` traverses loaded voxels with a normalized double-precision ray, floor coordinates, and X/Y/Z tie order. Ray56 contains origin XYZ, direction XYZ, and reach (seven doubles). Reach is bounded to 256 blocks. Hit72 contains cell XYZ, entry face (6 when starting inside), distance, previous cell XYZ, and block ID. Returns 1 hit, 0 miss, 2 unloaded, 3 out of bounds, or -1 invalid; only a hit writes output. `ray_box_interval` clips against six double bounds. `camera_ray` uses logical window pixel centers and the same orthographic basis as the shader.
+
+The viewer clips picking to X/Z [0,32) and Y [64,80), then builds twelve slightly expanded outline edges. `terrain_apply_edit` removes or places through the cache; actual edits increment revisions and mark boundary neighbors dirty. The next draw rebuilds all four section meshes and uploads their combined VBO. This synchronous bounded rebuild is a prototype, not the planned streaming worker system. `terrain_edit_cell` is an explicit loaded-cell adapter for tests; it rejects IDs above 6 and returns 1 changed, 0 unchanged/unloaded, or -1 invalid. No inventory, collision, saved edits, or survival rules are implemented yet.
+
+`tests/raycast.py` exercises 10,680 assertions per ABI, including randomized independent traversal, negative coordinates, ties, bounds, invalid floats, output preservation, box clipping, and camera rays. Graphics tests verify selection outlines, removal/placement readback, restored meshes, unloaded-cell rejection, and edit retention across camera reset.
