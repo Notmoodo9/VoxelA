@@ -1,0 +1,39 @@
+name: Assembly engine checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y nasm gcc make binutils python3 libsdl2-dev libgl1-mesa-dri xvfb xauth
+      - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window
+      - run: ./build/linux/${{ matrix.config }}/voxela
+      - run: xvfb-run -a ./build/linux/${{ matrix.config }}/voxela-window --smoke
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        config: [debug, release]
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            nasm
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-SDL2
+      - run: make TARGET=windows CONFIG=${{ matrix.config }} all test window
+      - run: ./build/windows/${{ matrix.config }}/voxela.exe

@@ -1,0 +1,13 @@
+%define SECTION_CELLS 4096
+%define SECTION_BYTES 8192
+%define BLOCK_AIR 0
+%define BLOCK_STONE 1
+%define BLOCK_DIRT 2
+%define BLOCK_GRASS 3
+%define BLOCK_SAND 4
+%define BLOCK_WOOD 5
+%define BLOCK_LEAVES 6
+%define BLOCK_BEDROCK 7
+%define BLOCK_COUNT 8
+%define WORLD_MIN -30000000
+%define WORLD_MAX 30000000
