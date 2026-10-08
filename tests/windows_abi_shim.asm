@@ -266,5 +266,7 @@ SHIM book_append
 SHIM book_backspace
 SHIM book_scroll
 SHIM book_recipe
+SHIM terrain_lod_build
+SHIM terrain_surface
 SHIM landscape_sample
 section .note.GNU-stack noalloc noexec nowrite progbits

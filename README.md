@@ -25,9 +25,9 @@ Terrain is frozen generator0: heights64–79, surface layers and climate-derived
 biome labels. Trees, caves, true mountains, liquids and creatures are absent.
 The full-detail view is a synchronous5×5-column cache,400 sections at Y0–255, with
 an8,192-edit journal. It is not the requested16-near/64-far renderer or1,024-block
-world. A separate seeded 11-biome landscape preview now extends the visible
-horizon to a configurable 2–256 chunks, default 64; it is not explorable block
-terrain. Health/hunger and physical item drops remain pending. Creative flight and
+world. Progressive surface meshes now extend the view to 2–256 chunks, default
+64, using the actual generator and saved surface edits. The separate 11-biome
+landscape sampler is CPU-only until a versioned block generator adopts it. Health/hunger and physical item drops remain pending. Creative flight and
 player settings are now available, but settings/flight are not persisted yet.
 
 Chest/table storage, stable container IDs, registry2 inventory and2×2/3×3 recipe
@@ -254,7 +254,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 ### 6. Terrain, biomes, caves and liquids
 
 - [x] Frozen generator0 seed/noise/section golden fixtures and negative-coordinate checks.
-- [x] Separate seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs.
+- [x] CPU-only: separate seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs.
 - [ ] Extend every vertical lookup/cache/save/physics/render path to Y−256–767.
 - [ ] Versioned continentalness/elevation/temperature/moisture fields and biome blends.
 - [ ] Plains/forests/deserts/mountains/oceans/rivers with distinct profiles/materials.
@@ -285,7 +285,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Dreamlike gradient sky, sun halo, procedural cloud layer and atmospheric fog.
 - [x] Real 1,024² sun depth map with filtered shadow edges on Balanced/High.
 - [x] Live Low/Balanced/High presets, default High; graphics do not alter saves/items.
-- [x] Seeded 11-biome distant heightfield preview and bounded 2–256-chunk far radius.
+- [x] Actual-generator/journal distant surfaces, progressive LOD rings and shared-vertex joins.
+- [x] Caller-owned sample memoization with identical cached/uncached mesh output.
 - [ ] Adopt the new heightfield in versioned explorable chunks and preserve old borders.
 - [ ] Extend sun shadows to dynamic/cascaded coverage for tall and distant terrain.
 - [ ] Moving, richer cloud volumes with wind and sunlight scattering.
@@ -333,4 +334,4 @@ checklist. New decisions and implementation notes belong in focused documents;
 completion and ordering belong here. Keep completion claims scoped, preserve
 supported saves and unrelated changes, and never force-push.
 
-See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.md) for the new visual preview and its limits.
+See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.md) for progressive world-derived meshes and their limits.

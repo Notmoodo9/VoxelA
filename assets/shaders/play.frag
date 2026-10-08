@@ -51,9 +51,9 @@ float sunlight(float diffuse){
  return visibility/9.0;
 }
 void main(){
- // Detailed chunks own their footprint, regardless of coarse triangle height.
+ // CPU LOD leaves the detailed footprint empty; keep its transition faces.
  vec2 cellXZ=(relativePosition+eye).xz;
- if(hud==4 && all(greaterThanEqual(cellXZ,vec2(-32))) && all(lessThan(cellXZ,vec2(48))))discard;
+ if(hud==4 && max(abs(cellXZ.x-8.0),abs(cellXZ.y-8.0))>viewDistance.y)discard;
  if(hud==2){fragmentColor=vec4(display(sky(normalize(skyRay),true)),1.0);return;}
  vec4 sampleColor=texcoord.x<0.0?vec4(1.0):texture(atlas,texcoord);
  if(sampleColor.a<0.5)discard;

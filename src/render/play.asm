@@ -22,7 +22,7 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
-extern landscape_sample
+extern terrain_lod_build
 extern book_init, book_search, book_append, book_backspace, book_scroll, book_recipe
 extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
 extern recipe_catalog_info
@@ -3024,139 +3024,45 @@ FRAME play_sky,40
  mov A0,0xb71
  GLCALL glEnable
 END_FRAME play_sky,40
-FRAME play_far_rebuild,120
- mov qword [rsp+32],0
-.sample:
- mov rax,[rsp+32]
- xor edx,edx
- mov ecx,65
- div rcx
- sub rax,32
- sub rdx,32
- mov r10,[far_radius]
- shl r10,4
- imul rax,r10
- imul rdx,r10
- sar rax,5
- sar rdx,5
- mov [rsp+40],rdx
- mov [rsp+48],rax
- mov A0,[game_seed]
- mov r10,[world+32]
- shl r10,4
- add r10,rdx
- mov [rsp+64],r10
- mov r11,[world+40]
- shl r11,4
- add r11,rax
- mov [rsp+72],r11
- mov A1,r10
- mov A2,r11
- lea A3,[rsp+80]
- call landscape_sample
+FRAME play_far_rebuild,40
+ lea r10,[world]
+ mov [lod_config],r10
+ lea r10,[far_vertices]
+ mov [lod_config+8],r10
+ mov qword [lod_config+16],65536
+ mov rax,[world+32]
+ shl rax,4
+ add rax,8
+ mov [lod_config+24],rax
+ mov rax,[world+40]
+ shl rax,4
+ add rax,8
+ mov [lod_config+32],rax
+ mov rax,[far_radius]
+ shl rax,4
+ mov [lod_config+40],rax
+ lea r10,[lod_cache]
+ mov [lod_config+56],r10
+ lea A0,[lod_config]
+ call terrain_lod_build
  test rax,rax
- js .outside
- movsxd rax,dword [rsp+80]
- mov [rsp+56],rax
- mov A0,[game_seed]
- mov A1,[rsp+64]
- mov A2,[rsp+72]
- call terrain_height
- ; Legacy surface blends into the future landscape across 48..160 blocks.
- mov r10,[rsp+40]
- mov r11,[rsp+48]
- neg r10
- cmovs r10,[rsp+40]
- neg r11
- cmovs r11,[rsp+48]
- cmp r10,r11
- cmovb r10,r11
- sub r10,48
- xor r11d,r11d
- cmp r10,0
- cmovl r10,r11
- mov r11,112
- cmp r10,r11
- cmovg r10,r11
- mov r11,[rsp+56]
- sub r11,rax
- imul r11,r10
- mov [rsp+104],rax
- mov rax,r11
- cqo
- mov r11,112
- idiv r11
- add rax,[rsp+104]
- sub rax,2
- mov [rsp+56],rax
- jmp .vertex
-.outside:
- mov qword [rsp+56],-256
- mov dword [rsp+84],4
-.vertex:
- mov rax,[rsp+32]
- shl rax,5
- lea r10,[far_grid]
- add r10,rax
- cvtsi2ss xmm0,qword [rsp+40]
- movss [r10],xmm0
- cvtsi2ss xmm0,qword [rsp+56]
- movss [r10+4],xmm0
- cvtsi2ss xmm0,qword [rsp+48]
- movss [r10+8],xmm0
- mov eax,[rsp+84]
- imul eax,12
- lea r11,[biome_colors]
- mov rax,[r11+rax]
- mov [r10+12],rax
- mov eax,[rsp+84]
- imul eax,12
- mov eax,[r11+rax+8]
- mov [r10+20],eax
- mov dword [r10+24],__float32__(0.03125)
- mov dword [r10+28],__float32__(0.5)
- inc qword [rsp+32]
- cmp qword [rsp+32],4225
- jb .sample
- xor r8d,r8d
- lea r11,[far_vertices]
-.cell:
- mov eax,r8d
- xor edx,edx
- mov ecx,64
- div ecx
- imul eax,65
- add eax,edx
- xor ecx,ecx
-.triangle:
- lea r10,[far_corners]
- movzx edx,word [r10+rcx*2]
- add edx,eax
- shl edx,5
- lea r10,[far_grid]
- add r10,rdx
- movups xmm0,[r10]
- movups xmm1,[r10+16]
- movups [r11],xmm0
- movups [r11+16],xmm1
- add r11,32
- inc ecx
- cmp ecx,6
- jb .triangle
- inc r8d
- cmp r8d,4096
- jb .cell
+ jnz .done
  mov A0,0x8892
  mov r10d,[far_pair+4]
  mov A1,r10
  GLCALL glBindBuffer
  mov A0,0x8892
- mov A1,786432
+ mov A1,[lod_config+48]
+ shl A1,5
  lea A2,[far_vertices]
  mov A3,0x88e4
  GLCALL glBufferData
+ GLCALL glGetError
+ test eax,eax
+ jnz .done
  mov dword [far_dirty],0
-END_FRAME play_far_rebuild,120
+.done:
+END_FRAME play_far_rebuild,40
 FRAME play_draw,40
  cmp qword [world+88],0
  je .ready
@@ -3167,6 +3073,8 @@ FRAME play_draw,40
  cmp dword [far_dirty],0
  je .far_ready
  call play_far_rebuild
+ test rax,rax
+ jnz .done
 .far_ready:
  mov r10d,[program]
  mov A0,r10
@@ -3255,7 +3163,7 @@ FRAME play_draw,40
  GLCALL glBindVertexArray
  mov A0,4
  xor A1,A1
- mov A2,24576
+ mov A2,[lod_config+48]
  GLCALL glDrawArrays
  mov r10d,[locations+12]
  mov A0,r10
@@ -3426,12 +3334,6 @@ fantasy_trim:
  dd 154.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
  dd 482.0,74.0,4.0,4.0, 0.92,0.76,0.43,0.0
  dd 482.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
-far_corners: dw 0,65,66,0,66,1
-biome_colors:
- dd 0.36,0.55,0.23, 0.21,0.42,0.25, 0.82,0.68,0.40
- dd 0.53,0.55,0.63, 0.17,0.39,0.61, 0.25,0.52,0.66
- dd 0.79,0.86,0.91, 0.29,0.40,0.32, 0.63,0.60,0.26
- dd 0.59,0.38,0.76, 0.32,0.25,0.30
 sky_vertices:
  dd -1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
  dd 1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
@@ -3634,8 +3536,9 @@ faces: resb 24576*8
 target: resb 32
 scratch_vertices: resb 147456*24
 vertices: resb 1000000*32
-far_grid: resb 4225*32
-far_vertices: resb 24576*32
+lod_cache: resb 8192*32
+lod_config: resb 64
+far_vertices: resb 65536*32
 outline_vertices: resb 24*32
 hud_vertices: resb 100000*32
 rect: resd 4

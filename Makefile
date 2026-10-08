@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm src/world/terrain_surface.asm src/render/terrain_lod.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -63,6 +63,8 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/player_options.py $(BUILD)/libvoxela.so
 	python3 tests/recipe_book.py $(BUILD)/libvoxela.so
 	python3 tests/landscape.py $(BUILD)/libvoxela.so
+	python3 tests/terrain_surface.py $(BUILD)/libvoxela.so
+	python3 tests/terrain_lod.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
 	python3 tests/ui_layout.py $(BUILD)/libvoxela.so
@@ -104,6 +106,8 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/player_options.py $<
 	python3 tests/recipe_book.py $<
 	python3 tests/landscape.py $<
+	python3 tests/terrain_surface.py $<
+	python3 tests/terrain_lod.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
 	python3 tests/ui_layout.py $<

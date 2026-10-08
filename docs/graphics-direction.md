@@ -85,3 +85,8 @@ separate verification step.
 ![Raised gateway and sun shadows](fantasy-shadow-preview.png)
 ![Rustic inventory](inventory-preview.png)
 ![Rustic recipe book](recipe-book-preview.png)
+
+Distant terrain follows [the actual-terrain LOD contract](landscape-and-distance.md);
+it must use the current world generator and saved surfaces at every detail level.
+Experimental terrain styles require adopting the same generator in block chunks
+before they can change the horizon.
