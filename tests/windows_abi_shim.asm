@@ -35,6 +35,15 @@ SHIM mix64
 SHIM fnv1a
 SHIM item_limit
 SHIM inventory36_item_limit
+SHIM container_store_init
+SHIM container_store_valid
+SHIM container_store_find
+SHIM container_store_resolve
+SHIM container_store_add
+SHIM container_store_remove
+SHIM container_store_checksum
+SHIM container_store_encode
+SHIM container_store_decode
 SHIM container_init
 SHIM container_valid
 SHIM container_click

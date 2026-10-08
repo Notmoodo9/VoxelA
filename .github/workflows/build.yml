@@ -53,6 +53,7 @@ jobs:
       - run: /ucrt64/bin/python.exe tests/frame_stats.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/inventory36.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/game36_save.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/container_store.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/containers.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/recipes.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/crafting.py build/windows/${{ matrix.config }}/save_tests.dll

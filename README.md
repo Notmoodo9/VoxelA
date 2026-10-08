@@ -633,3 +633,13 @@ views, cursor interactions, partial two-way transfers, atomic transfer-all and
 checked container serialization. These CPU systems are tested; playable chest
 blocks, UI, drops and inclusion in world saves are not integrated yet. Gameplay
 format4 remains unchanged. See [exact contracts, tests and next steps](docs/containers-and-recipes.md).
+
+### World-owned container identities and aggregate persistence
+
+The assembly container store owns up to64 chest/table records independently of
+chunk residency, with unique locations and stable identities. Creation, lookup,
+removal and aggregate save/load validate ownership; nonempty records cannot be
+deleted. Removal never reuses IDs. A checked bounded codec supports empty/full
+stores and atomic loads. [Exact APIs, wire format and integration gates](docs/container-store.md).
+This is a tested CPU system; playable chest blocks/UI and world-save integration
+remain pending. The prototype64-record limit is not the final world limit.

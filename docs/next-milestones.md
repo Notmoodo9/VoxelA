@@ -91,7 +91,9 @@ Player 2×2 log/plank/stick crafting and format4 migration are implemented; see
 - [x] CPU left/right cursor interactions and partial Shift transfers in both
       directions preserve tool durability and stack limits. Paired views expose54 slots.
 - [ ] Connect these transactions to a playable container/drag UI.
-- [ ] Store each chest by world/block identity, independent of residency/menu state.
+- [x] CPU store owns containers by unique location and stable identity, independently
+      of cache/menu memory, with bounded aggregate serialization.
+- [ ] Connect the store to chunk/world edits, residency and open-menu contexts.
 - [x] Versioned checked container serialization and atomic decode primitives.
 - [ ] Integrate these records into world saves and legacy migration.
 - [ ] Register craftable chest/table items, block mappings, original textures,
@@ -106,7 +108,8 @@ Player 2×2 log/plank/stick crafting and format4 migration are implemented; see
 
 Reusable container ownership/transaction/save primitives and shared shaped-recipe
 matching are implemented; see [container and recipe contracts](containers-and-recipes.md).
-World placement and UI need the remaining registry/save integration; CPU primitives alone are not playable chests.
+The [container store](container-store.md) now supplies stable ownership and aggregate
+persistence. World placement and UI need the remaining registry/save integration; CPU primitives alone are not playable chests.
 
 ## 3. Configurable streaming and distant terrain
 
