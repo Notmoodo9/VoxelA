@@ -156,6 +156,8 @@ For `lattice`, compute `mix64(seed XOR (x * 0xd6e8feb86659fd93) XOR (z * 0xa5a35
 
 The first-person walking milestone is implemented. Next work includes trees/caves and richer biomes, region-backed storage beyond the bounded journal, asynchronous streaming, entities and physical item drops, 27-slot storage, crafting grids/tables, health/hunger, creative flight, and audio. The original generic cache remains a linear lookup primitive; the player game layers a bounded ring-residency lifecycle on it.
 
+The user-confirmed next scope and detailed implementation tasks are recorded in [the next-milestone plan](docs/next-milestones.md): 27 storage slots plus nine hotbar slots, shaped 2×2/3×3 crafting, configurable long-distance rendering, taller terrain, expanded biomes/caves and generation-version migration. These remain planned until their delivery gates pass.
+
 ## Initial technical direction
 
 - Support x86-64 Windows 10/11 and x86-64 Linux from the first playable milestone, using NASM syntax. Windows uses PE/COFF objects and the Microsoft x64 calling convention; Linux uses ELF objects and System V AMD64. ARM and 32-bit systems are outside the initial scope.
