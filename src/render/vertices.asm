@@ -1,4 +1,5 @@
 %include "abi.inc"
+%include "world.inc"
 section .text
 ; faces_expand(records,count,target*)->vertex_count, -1 invalid input,
 ; -2 insufficient capacity. target: pointer at0, u64 vertex_capacity at8,
@@ -45,7 +46,7 @@ faces_expand:
  jae .bad
  cmp word [r10+rcx*8+4],1
  jb .bad
- cmp word [r10+rcx*8+4],8
+ cmp word [r10+rcx*8+4],BLOCK_COUNT
  jae .bad
  cmp word [r10+rcx*8+6],0
  jne .bad
@@ -129,6 +130,11 @@ colors:
  dd 0.48,0.32,0.17
  dd 0.18,0.48,0.17
  dd 0.24,0.24,0.27
+%if WORLD_REGISTRY = 2
+ dd 0.66,0.46,0.25 ; planks
+ dd 0.62,0.38,0.16 ; chest
+ dd 0.50,0.30,0.14 ; table
+%endif
 shading: dd 0.7,0.8,0.45,1.0,0.6,0.85
 ; Six CCW vertices per face: corners 0,1,2,0,2,3.
 corners:

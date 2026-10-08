@@ -27,12 +27,12 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
 objects: $(OBJECTS) $(BUILD)/src/platform/main.o $(BUILD)/tests/runner.o
-$(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc include/container.inc
+$(BUILD)/%.o: %.asm $(wildcard include/*.inc)
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -f $(FORMAT) $< -o $@
 $(BUILD)/voxela$(EXT): $(OBJECTS) $(BUILD)/src/platform/main.o
@@ -59,6 +59,8 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/containers.py $(BUILD)/libvoxela.so
 	python3 tests/registry.py $(BUILD)/libvoxela.so
 	python3 tests/inventory2.py $(BUILD)/libvoxela.so
+	python3 tests/world2.py $(BUILD)/libvoxela.so
+	python3 tests/player_options.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
 	python3 tests/ui_layout.py $(BUILD)/libvoxela.so
@@ -74,7 +76,7 @@ clean:
 # runtime validation. Prefix symbols so the shim can expose the same API.
 ifeq ($(TARGET),linux)
 WIN_ABI_OBJECTS = $(patsubst %.asm,$(BUILD)/win-abi/%.o,$(CORE))
-$(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc include/container.inc
+$(BUILD)/win-abi/%.o: %.asm $(wildcard include/*.inc)
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -DWINDOWS_ABI=1 -f elf64 $< -o $@.raw
 	objcopy --prefix-symbols=win_ $@.raw $@
@@ -96,6 +98,8 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/containers.py $<
 	python3 tests/registry.py $<
 	python3 tests/inventory2.py $<
+	python3 tests/world2.py $<
+	python3 tests/player_options.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
 	python3 tests/ui_layout.py $<
@@ -162,3 +166,8 @@ $(BUILD)/input_driver.so: $(BUILD)/tests/input_driver.o
 window-reference: $(BUILD)/voxela-window $(BUILD)/input_driver.so
 	python3 tests/window_play.py $^
 endif
+
+# Registry2 wrappers include the shared source; rebuild whenever it changes.
+WORLD2_SHARED = src/world/blocks.asm src/world/cache.asm src/world/stream.asm src/render/mesh.asm src/render/vertices.asm src/game/player.asm src/world/walk_save.asm src/world/raycast.asm
+$(patsubst %.asm,$(BUILD)/%.o,src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm): $(WORLD2_SHARED)
+$(patsubst %.asm,$(BUILD)/win-abi/%.o,src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm): $(WORLD2_SHARED)

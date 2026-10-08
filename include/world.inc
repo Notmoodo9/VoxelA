@@ -8,6 +8,13 @@
 %define BLOCK_WOOD 5
 %define BLOCK_LEAVES 6
 %define BLOCK_BEDROCK 7
-%define BLOCK_COUNT 8
+%ifndef WORLD_REGISTRY
+ %define WORLD_REGISTRY 1
+%endif
+%if WORLD_REGISTRY = 2
+ %define BLOCK_COUNT 11
+%else
+ %define BLOCK_COUNT 8
+%endif
 %define WORLD_MIN -30000000
 %define WORLD_MAX 30000000

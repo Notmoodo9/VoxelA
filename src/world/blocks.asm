@@ -87,4 +87,7 @@ block_flags:
  ret
 section .rdata align=8
 flags: db 0,7,7,7,7,7,13,3
+%if WORLD_REGISTRY = 2
+ db 7,23,23
+%endif
 ELF_STACK

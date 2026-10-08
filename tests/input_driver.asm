@@ -30,6 +30,8 @@ SDL_GetKeyboardState:
  mov byte [keys+26],1 ; W
  mov byte [keys+225],1 ; Shift
  mov byte [keys+44],0
+ cmp qword [phase],25
+ je .flight_keys
  cmp qword [frames],20
  jb .moving
  cmp qword [frames],180
@@ -45,6 +47,12 @@ SDL_GetKeyboardState:
  cmp edx,5
  jae .return
  mov byte [keys+44],1 ; release between jumps
+.flight_keys:
+ cmp qword [phase],25
+ jne .return
+ mov byte [keys+26],0
+ mov byte [keys+225],0
+ mov byte [keys+44],1
 .return:
  lea rax,[keys]
  ret
@@ -84,8 +92,16 @@ SDL_PollEvent:
  je .pause
  cmp r10,16
  je .resume
- cmp r10,17
+ cmp r10,25
+ je .fly_wait
+ cmp r10,32
+ je .force_periodic
+ cmp r10,33
  je .quit
+ cmp r10,17
+ jb .none
+ cmp r10,32
+ jb .option_key
  xor eax,eax
  ret
 .clear:
@@ -228,6 +244,28 @@ SDL_PollEvent:
  inc qword [phase]
  mov eax,1
  ret
+.option_key:
+ call .clear
+ mov dword [rdi],0x300
+ mov rax,[phase]
+ sub rax,17
+ lea r10,[option_keys]
+ mov eax,[r10+rax*4]
+ mov [rdi+20],eax
+ inc qword [phase]
+ mov eax,1
+ ret
+.fly_wait:
+ cmp qword [frames],1300
+ jb .none
+ inc qword [phase]
+ xor eax,eax
+ ret
+.force_periodic:
+ add dword [ticks],300000
+ inc qword [phase]
+ xor eax,eax
+ ret
 .quit:
  call .clear
  mov dword [rdi],0x300
@@ -238,6 +276,8 @@ SDL_PollEvent:
 .none:
  xor eax,eax
  ret
+section .rdata
+option_keys: dd 1073741884,91,45,105,116,1073741885,32,32,0,32,32,1073741885,1073741884,116,105
 section .bss align=16
 ticks: resd 1
 phase: resq 1

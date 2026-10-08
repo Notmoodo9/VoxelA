@@ -1,4 +1,5 @@
 %include "abi.inc"
+%include "world.inc"
 section .text
 extern cache_get
 ; Ray: double origin XYZ at0/8/16, direction XYZ at24/32/40, reach at48.
@@ -99,7 +100,7 @@ FRAME world_raycast,280
  cmp eax,2
  je .outside
  movzx eax,word [rsp+256]
- cmp eax,8
+ cmp eax,BLOCK_COUNT
  jae .bad
  test eax,eax
  jnz .hit

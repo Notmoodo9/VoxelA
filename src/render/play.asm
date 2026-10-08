@@ -22,6 +22,7 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
+extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
 extern recipe_missing, recipe_info
 extern craft_can_fill
 extern craft_collect, craft_preview, craft_click, craft_take, craft_repeat, craft_fill, craft_clear
@@ -272,6 +273,14 @@ FRAME play_init,120
  js .fail
  mov dword [screen_width],800
  mov dword [screen_height],600
+ lea A0,[options]
+ call settings_init
+ lea A0,[options]
+ lea A1,[lens+4]
+ call settings_lens
+ mov dword [shift_previous],0
+ mov dword [space_pending],0
+ mov qword [settings_feedback],0
  lea A0,[inventory]
  call inventory_init
  mov qword [inventory+304],0
@@ -481,21 +490,81 @@ FRAME play_rebuild,136
 .bad: mov rax,-1
 .done:
 END_FRAME play_rebuild,136
-FRAME play_frame_time,40
+FRAME play_frame_time,56
+ mov [rsp+32],A0
  mov A1,A0
  lea A0,[frame_stats]
  call frame_stats_step
-END_FRAME play_frame_time,40
+ test rax,rax
+ jnz .done
+ mov r10,[settings_feedback]
+ mov r11,[rsp+32]
+ cmp r11,r10
+ cmova r11,r10
+ sub [settings_feedback],r11
+.done:
+END_FRAME play_frame_time,56
 FRAME play_step,72
+ mov rax,A0
+ and rax,~127
+ jnz .invalid
  cmp qword [menu_open],0
  jne .paused
  mov [rsp+32],A0
  mov [rsp+40],A1
- mov A2,A0
- mov A3,A1
+ ; Toggle-sprint responds to Shift edges and preserves normal hold mode.
+ mov rax,[rsp+32]
+ mov r10,rax
+ and r10,32
+ cmp dword [options+12],0
+ je .hold_sprint
+ test r10,r10
+ jz .toggle_ready
+ cmp dword [shift_previous],0
+ jne .toggle_ready
+ xor dword [options+28],1
+.toggle_ready:
+ and rax,~32
+ cmp dword [options+28],0
+ je .hold_sprint
+ or rax,32
+.hold_sprint:
+ mov [shift_previous],r10d
+ mov A2,rax
+ mov A3,[rsp+40]
  lea A0,[world]
  lea A1,[player]
+ cmp dword [options+24],0
+ je .walking
+ ; Cap original frame time before scaling flight speed; movement uses substeps.
+ cmp A3,100
+ jbe .flight_time
+ mov A3,100
+.flight_time:
+ mov rax,A3
+ mov ecx,[options+20]
+ imul rax,rcx
+ xor edx,edx
+ mov ecx,100
+ div rcx
+ mov A3,rax
+ ; Division clobbers ABI argument registers; restore inputs and owners.
+ mov A2,[rsp+32]
+ cmp dword [options+12],0
+ je .flight_args
+ and A2,~32
+ cmp dword [options+28],0
+ je .flight_args
+ or A2,32
+.flight_args:
+ lea A0,[world]
+ lea A1,[player]
+ call player_fly
+ jmp .moved
+.walking:
+ and A2,63
  call player_step
+.moved:
  test rax,rax
  jnz .done
  movsd xmm0,[player]
@@ -523,20 +592,98 @@ FRAME play_step,72
  xor eax,eax
 .done:
  jmp .exit
+.invalid: mov rax,-1
+ jmp .exit
 .paused: xor eax,eax
 .exit:
 END_FRAME play_step,72
-FRAME play_look,40
+FRAME play_look,72
  cmp qword [menu_open],0
  jne .paused
  mov A2,A1
  mov A1,A0
+ lea A0,[options]
+ lea A3,[rsp+48]
+ call settings_mouse
+ test rax,rax
+ jnz .done
+ mov A1,[rsp+48]
+ mov A2,[rsp+56]
  lea A0,[player]
  call player_look
  jmp .done
 .paused: xor eax,eax
 .done:
-END_FRAME play_look,40
+END_FRAME play_look,72
+FRAME play_setting,56
+ mov [rsp+32],A0
+ mov A2,A1
+ mov A1,A0
+ lea A0,[options]
+ call settings_set
+ test rax,rax
+ jnz .done
+ cmp qword [rsp+32],3
+ jne .lens
+ mov dword [options+28],0
+ mov dword [shift_previous],0
+.lens:
+ lea A0,[options]
+ lea A1,[lens+4]
+ call settings_lens
+ mov qword [settings_feedback],3000
+.done:
+END_FRAME play_setting,56
+global play_get_settings
+play_get_settings:
+ mov r10,A0
+ lea r11,[options]
+ xor ecx,ecx
+.copy:
+ mov rax,[r11+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,32
+ jb .copy
+ xor eax,eax
+ ret
+global play_space_press
+play_space_press:
+ mov rax,A0
+ shr rax,32
+ jnz .bad
+ cmp dword [inventory+292],1
+ jne .reset
+ cmp qword [menu_open],0
+ jne .reset
+ cmp qword [captured],0
+ je .reset
+ mov rax,A0
+ cmp dword [space_pending],0
+ je .first
+ sub eax,[space_tick]
+ cmp eax,250
+ ja .first
+ mov dword [space_pending],0
+ xor dword [options+24],1
+ mov qword [settings_feedback],3000
+ mov qword [player+48],0
+ mov qword [player+56],0
+ mov qword [player+72],0
+ mov eax,1
+ ret
+.first:
+ mov rax,A0
+ mov [space_tick],eax
+ mov dword [space_pending],1
+ xor eax,eax
+ ret
+.reset:
+ mov dword [space_pending],0
+ xor eax,eax
+ ret
+.bad: mov rax,-1
+ ret
 FRAME play_resize,56
  mov [rsp+32],A0
  mov [rsp+40],A1
@@ -571,6 +718,9 @@ play_get_player:
 global play_set_capture
 play_set_capture:
  mov [captured],A0
+ mov dword [space_pending],0
+ mov dword [shift_previous],0
+ mov dword [options+28],0
  mov qword [mining_time],0
  mov qword [mining_required],0
  xor eax,eax
@@ -697,6 +847,11 @@ play_mode:
  ja .bad
  mov rax,A0
  mov [inventory+292],eax
+ mov dword [options+24],0
+ mov dword [options+28],0
+ mov dword [space_pending],0
+ mov qword [player+48],0
+ mov qword [player+72],0
  mov qword [mining_time],0
  mov qword [mining_required],0
  lea r10,[survival_text]
@@ -1995,6 +2150,80 @@ FRAME play_menu_hud,72
  mov qword [hud_virtual],0
  xor eax,eax
 END_FRAME play_menu_hud,72
+FRAME hud_settings,72
+ cmp qword [settings_feedback],0
+ jne .show
+ cmp dword [options+16],0
+ je .done
+.show:
+ mov qword [rsp+32],0
+.field:
+ mov rax,[rsp+32]
+ lea r10,[setting_names]
+ movsxd rcx,dword [r10+rax*4]
+ lea A0,[r10+rcx]
+ imul rax,90
+ add rax,180
+ mov [rsp+40],rax
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,30
+ mov A2,rax
+ call hud_text
+ mov rax,[rsp+32]
+ lea r10,[options]
+ mov eax,[r10+rax*4]
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+40]
+ mov eax,[screen_height]
+ sub eax,48
+ mov A2,rax
+ call hud_text
+ inc qword [rsp+32]
+ cmp qword [rsp+32],6
+ jb .field
+.done:
+END_FRAME hud_settings,72
+FRAME hud_coordinates,72
+ cmp dword [options+16],0
+ je .done
+ mov qword [rsp+32],0
+.axis:
+ mov rax,[rsp+32]
+ lea r10,[player]
+ movsd xmm0,[r10+rax*8]
+ cvttsd2si r11,xmm0
+ cvtsi2sd xmm1,r11
+ comisd xmm0,xmm1
+ jae .floor
+ dec r11
+.floor:
+ mov A0,r11
+ lea A1,[coordinate_text]
+ call format_i64
+ mov rax,[rsp+32]
+ lea r10,[axis_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,12
+ mov eax,[screen_height]
+ sub eax,92
+ mov rcx,[rsp+32]
+ imul ecx,18
+ sub eax,ecx
+ mov [rsp+40],rax
+ mov A2,rax
+ call hud_text
+ lea A0,[coordinate_text]
+ mov A1,36
+ mov A2,[rsp+40]
+ call hud_text
+ inc qword [rsp+32]
+ cmp qword [rsp+32],3
+ jb .axis
+.done:
+END_FRAME hud_coordinates,72
 FRAME hud_fps,40
  call menu_white
  lea A0,[fps_text]
@@ -2102,6 +2331,8 @@ FRAME play_hud,72
  sub eax,64
  mov A2,rax
  call hud_text
+ call hud_coordinates
+ call hud_settings
  cmp qword [mining_required],0
  je .slots
  mov eax,[screen_width]
@@ -2441,6 +2672,10 @@ FRAME play_load,40
  call game_decode
  test rax,rax
  jnz .fail
+ mov dword [options+24],0
+ mov dword [options+28],0
+ mov dword [space_pending],0
+ mov dword [shift_previous],0
  cmp qword [inventory+296],0
  je .no_cursor
  mov A0,1
@@ -2560,12 +2795,23 @@ font: incbin 'assets/textures/font5x7.bin'
 section .data align=8
 game_seed: dq 42
 spawn: dq 0.5,0.0,0.5
-lens: dd 1.333333333,1.428148007
+lens: dd 1.333333333,0.916331174
 digit_text: db '1',0
 number_text: times 4 db 0
 align 8
 save_target: dq 0,262608
 load_bundle: dq 0,0
+setting_fov: db 'FOV',0
+setting_sens: db 'SENS',0
+setting_inv: db 'INV',0
+setting_sprint: db 'SPRINT',0
+setting_coords: db 'XYZ',0
+setting_fly: db 'FLY %',0
+setting_names: dd setting_fov-setting_names,setting_sens-setting_names,setting_inv-setting_names,setting_sprint-setting_names,setting_coords-setting_names,setting_fly-setting_names
+axis_x: db 'X',0
+axis_y: db 'Y',0
+axis_z: db 'Z',0
+axis_names: dd axis_x-axis_names,axis_y-axis_names,axis_z-axis_names
 section .bss align=16
 gl: resq GL_PROC_COUNT
 vertex_shader: resd 1
@@ -2621,4 +2867,11 @@ eye: resd 3
 status: resq 1
 save_buffer: resb 262608
 diagnostic: resb 2048
+options: resb 32
+shift_previous: resd 1
+space_pending: resd 1
+space_tick: resd 1
+coordinate_text: resb 24
+
+settings_feedback: resq 1
 ELF_STACK

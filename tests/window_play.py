@@ -13,12 +13,14 @@ with tempfile.TemporaryDirectory(prefix='VoxelA actual player ') as folder:
  assert result.stdout.count('Saved player and streamed edits')==2,result.stdout
  assert 'Loaded player and streamed edits' in result.stdout,result.stdout
  assert 'failed' not in result.stdout.lower(),result.stdout
+ assert result.stdout.count('Autosaved player and world.')>=3,'pause/periodic/exit autosaves not dispatched'
  data=(Path(folder)/'voxela-world.vxa').read_bytes()
  assert data[:8]==b'VXAWALK\0' and struct.unpack_from('<Q',data,24)[0]==42
  x,y,z=struct.unpack_from('<ddd',data,64)
  assert z<-16,(x,y,z,'did not cross a chunk boundary')
  count=struct.unpack_from('<I',data,20)[0]
  assert count>0,'mouse breaking did not record an edit'
+ assert y>90,'scripted Creative double-tap/up flight did not reach saved player state'
  assert struct.unpack_from('<I',data,8)[0]==4,'old gameplay format'
  inventory=data[128+count*32:]
  assert len(inventory)==336 and struct.unpack_from('<II',inventory,288)==(4,0),'selected tool/mode persistence'

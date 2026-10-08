@@ -1,4 +1,5 @@
 %include "abi.inc"
+%include "world.inc"
 section .text
 extern player_collides, player_init, player_look, stream_recenter, generated_block
 ; Walk format: Header128 + up to8192 Edit32 records. Explicit LE fields.
@@ -79,8 +80,15 @@ edits_valid:
  jb .bad
  cmp qword [rax+8],256
  jae .bad
+%if WORLD_REGISTRY = 2
+ cmp qword [rax+24],BLOCK_COUNT
+ jae .bad
+ cmp qword [rax+24],7
+ je .bad
+%else
  cmp qword [rax+24],6
  ja .bad
+%endif
  xor r9d,r9d
 .duplicate:
  cmp r9,r8
@@ -183,7 +191,7 @@ FRAME walk_encode,104
  mov rax,0x004b4c4157415856
  mov [r10],rax
  mov dword [r10+8],1
- mov dword [r10+16],1
+ mov dword [r10+16],WORLD_REGISTRY
  mov eax,[rsp+64]
  mov [r10+20],eax
  mov r11,[rsp+32]
@@ -243,8 +251,15 @@ FRAME walk_decode,104
  jne .bad
  cmp dword [A0+12],0
  jne .bad
+%if WORLD_REGISTRY = 2
+ cmp dword [A0+16],1
+ jb .bad
+ cmp dword [A0+16],2
+ ja .bad
+%else
  cmp dword [A0+16],1
  jne .bad
+%endif
  mov eax,[A0+20]
  cmp eax,8192
  ja .bad
@@ -286,6 +301,23 @@ FRAME walk_decode,104
  call edits_valid
  test rax,rax
  jnz .bad
+%if WORLD_REGISTRY = 2
+ ; A legacy header must not smuggle extended block IDs into the old registry.
+ mov r10,[rsp+32]
+ cmp dword [r10+16],1
+ jne .registry_checked
+ xor ecx,ecx
+.legacy_ids:
+ cmp rcx,[rsp+64]
+ jae .registry_checked
+ mov rax,rcx
+ shl rax,5
+ cmp qword [r10+128+rax+24],6
+ ja .bad
+ inc ecx
+ jmp .legacy_ids
+.registry_checked:
+%endif
  mov r10,[rsp+32]
  mov A0,[r10+24]
  lea A1,[r10+128]

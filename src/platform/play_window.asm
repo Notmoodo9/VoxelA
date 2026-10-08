@@ -10,6 +10,8 @@ extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
 extern play_scroll, play_copy_block, play_menu_number, play_menu_clear
 extern inventory_ui_pointer
+extern autosave_init, autosave_poll, autosave_finish
+extern play_setting, play_get_settings, play_space_press
 extern play_frame_time
 extern play_menu_action, play_menu_release, play_menu_pointer, play_menu_tab
 extern play_menu, play_menu_open, play_menu_click
@@ -134,8 +136,12 @@ FRAME main,120
  test rax,rax
  jnz .pixel_error
  call SDL_GetTicks
+ mov eax,eax ; SDL ticks are explicitly unsigned32
  mov [start_tick],eax
  mov [previous_tick],eax
+ mov A1,rax
+ lea A0,[autosave_clock]
+ call autosave_init
  mov byte [focused],1
  mov byte [mouse_captured],0
  cmp qword [rsp+80],0
@@ -153,6 +159,7 @@ FRAME main,120
  cmp qword [rsp+80],0
  je .poll
  call SDL_GetTicks
+ mov eax,eax ; SDL ticks are explicitly unsigned32
  sub eax,[start_tick]
  cmp eax,10000
  jae .pixel_error
@@ -333,6 +340,26 @@ FRAME main,120
  je .success
  cmp dword [event+20],27
  je .release
+ cmp dword [event+20],32
+ je .space_press
+ cmp dword [event+20],1073741884 ; F3
+ je .coordinates
+ cmp dword [event+20],105 ; I
+ je .invert
+ cmp dword [event+20],116 ; T
+ je .toggle_sprint
+ cmp dword [event+20],91 ; [
+ je .fov_less
+ cmp dword [event+20],93 ; ]
+ je .fov_more
+ cmp dword [event+20],45 ; -
+ je .sens_less
+ cmp dword [event+20],61 ; =
+ je .sens_more
+ cmp dword [event+20],44 ; ,
+ je .flight_less
+ cmp dword [event+20],46 ; .
+ je .flight_more
  cmp dword [event+20],101
  je .inventory
  cmp dword [event+20],9
@@ -369,6 +396,65 @@ FRAME main,120
 .number_swap:
  mov A0,[menu_number]
  call play_menu_number
+ jmp .loop
+.space_press:
+ call SDL_GetTicks
+ mov eax,eax ; SDL ticks are explicitly unsigned32
+ mov A0,rax
+ call play_space_press
+ jmp .loop
+.coordinates:
+ mov dword [setting_index],4
+ jmp .toggle_setting
+.invert:
+ mov dword [setting_index],2
+ jmp .toggle_setting
+.toggle_sprint:
+ mov dword [setting_index],3
+.toggle_setting:
+ lea A0,[settings_state]
+ call play_get_settings
+ mov ecx,[setting_index]
+ lea r10,[settings_state]
+ mov eax,[r10+rcx*4]
+ xor eax,1
+ mov A1,rax
+ mov A0,rcx
+ call play_setting
+ jmp .loop
+.fov_less:
+ mov dword [setting_index],0
+ mov qword [setting_delta],-5
+ jmp .adjust_setting
+.fov_more:
+ mov dword [setting_index],0
+ mov qword [setting_delta],5
+ jmp .adjust_setting
+.sens_less:
+ mov dword [setting_index],1
+ mov qword [setting_delta],-10
+ jmp .adjust_setting
+.sens_more:
+ mov dword [setting_index],1
+ mov qword [setting_delta],10
+ jmp .adjust_setting
+.flight_less:
+ mov dword [setting_index],5
+ mov qword [setting_delta],-25
+ jmp .adjust_setting
+.flight_more:
+ mov dword [setting_index],5
+ mov qword [setting_delta],25
+.adjust_setting:
+ lea A0,[settings_state]
+ call play_get_settings
+ mov ecx,[setting_index]
+ lea r10,[settings_state]
+ mov eax,[r10+rcx*4]
+ add rax,[setting_delta]
+ mov A1,rax
+ mov A0,rcx
+ call play_setting ; out-of-range updates are rejected, leaving old setting intact
  jmp .loop
 .grid_clear:
  call play_menu_clear
@@ -433,6 +519,8 @@ FRAME main,120
  call SDL_SetRelativeMouseMode
  xor A0,A0
  call play_set_capture
+ mov A0,1
+ call window_autosave
  jmp .loop
 .save:
  lea A0,[save_path]
@@ -471,10 +559,16 @@ FRAME main,120
  jmp .loop
 .render:
  call SDL_GetTicks
+ mov eax,eax ; SDL ticks are explicitly unsigned32
  mov r10d,eax
  sub r10d,[previous_tick]
  mov [previous_tick],eax
  mov [elapsed],r10d
+ cmp qword [rsp+80],0
+ jne .skip_autosave
+ xor A0,A0
+ call window_autosave
+.skip_autosave:
  cmp qword [rsp+80],0
  jne .view_size
  cmp byte [mouse_captured],0
@@ -495,7 +589,7 @@ FRAME main,120
  or r11,rax
 .next_key:
  inc r9
- cmp r9,6
+ cmp r9,7
  jb .keys
  mov A0,r11
  mov r10d,[elapsed]
@@ -617,6 +711,11 @@ FRAME main,120
  cmp qword [rsp+88],3
  jb .pixel_error
 .accepted:
+ cmp qword [rsp+80],0
+ jne .no_exit_save
+ mov A0,2
+ call window_autosave
+.no_exit_save:
  mov qword [rsp+112],0
  jmp .cleanup
 .pixel_error:
@@ -657,6 +756,33 @@ FRAME main,120
 .return:
  mov rax,[rsp+112]
 END_FRAME main,120
+; Reuses the existing atomic world-file save; failure never clears live state.
+FRAME window_autosave,56
+ mov [rsp+32],A0
+ call SDL_GetTicks
+ mov eax,eax ; SDL ticks are explicitly unsigned32
+ mov [rsp+40],rax
+ mov A2,[rsp+32]
+ mov A1,rax
+ lea A0,[autosave_clock]
+ call autosave_poll
+ cmp rax,1
+ jne .done
+ lea A0,[save_path]
+ call play_save
+ mov [rsp+48],rax
+ mov A2,rax
+ mov A1,[rsp+40]
+ lea A0,[autosave_clock]
+ call autosave_finish
+ lea A0,[auto_pass]
+ cmp qword [rsp+48],0
+ je .message
+ lea A0,[auto_fail]
+.message:
+ call puts
+.done:
+END_FRAME window_autosave,56
 section .rdata
 seed_arg: db '--seed',0
 smoke_arg: db '--smoke',0
@@ -682,7 +808,9 @@ green: dd 0.75
 blue: dd 0.94
 alpha: dd 1.0
 proc_names: dd p0-proc_names,p1-proc_names,p2-proc_names,p3-proc_names,p4-proc_names
-keymap: dw 26,1,22,2,4,4,7,8,44,16,225,32
+keymap: dw 26,1,22,2,4,4,7,8,44,16,225,32,224,64
+auto_pass: db 'Autosaved player and world.',0
+auto_fail: db 'Autosave failed; previous save and live state retained.',0
 section .bss align=16
 procs: resq 5
 event: resb 56
@@ -704,4 +832,8 @@ menu_x: resq 1
 menu_y: resq 1
 menu_event_mode: resb 1
 menu_action: resb 1
+autosave_clock: resb 16
+settings_state: resb 32
+setting_index: resd 1
+setting_delta: resq 1
 ELF_STACK

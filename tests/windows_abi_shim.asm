@@ -163,6 +163,7 @@ SHIM arena_reset
 %endmacro
 MATH_SHIM sinf
 MATH_SHIM cosf
+MATH_SHIM tanf
 %macro ALLOC_SHIM 1
  global win_ %+ %1
  extern %1
@@ -212,4 +213,51 @@ SHIM grid_craft_take
 SHIM grid_craft_repeat
 SHIM grid_craft_clear
 SHIM grid_craft_fill
+SHIM world2_floor_section
+SHIM world2_local_axis
+SHIM world2_block_index
+SHIM world2_world_in_bounds
+SHIM world2_section_get
+SHIM world2_section_set
+SHIM world2_block_flags
+SHIM world2_cache_init
+SHIM world2_cache_find
+SHIM world2_cache_touch_neighbors
+SHIM world2_cache_insert
+SHIM world2_cache_edit
+SHIM world2_cache_get
+SHIM world2_stream_init
+SHIM world2_generated_block
+SHIM world2_stream_recenter
+SHIM world2_stream_get
+SHIM world2_stream_edit
+SHIM world2_face_neighbor
+SHIM world2_mesh_walk
+SHIM world2_mesh_build
+SHIM world2_faces_expand
+SHIM world2_player_resize
+SHIM world2_player_ray
+SHIM world2_player_overlaps_cell
+SHIM world2_player_init
+SHIM world2_player_look
+SHIM world2_player_collides
+SHIM world2_move_axis
+SHIM world2_player_step
+SHIM world2_walk_checksum
+SHIM world2_edits_canonical
+SHIM world2_walk_encode
+SHIM world2_walk_decode
+SHIM world2_walk_pose_free
+SHIM world2_ray_box_interval
+SHIM world2_world_raycast
+SHIM settings_init
+SHIM settings_valid
+SHIM settings_set
+SHIM settings_lens
+SHIM settings_mouse
+SHIM player_fly
+SHIM autosave_init
+SHIM autosave_poll
+SHIM autosave_finish
+SHIM format_i64
 section .note.GNU-stack noalloc noexec nowrite progbits

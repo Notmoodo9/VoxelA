@@ -305,6 +305,36 @@ try:
   assert save(encoded)==0 and stop()==0 and start()==0 and load(encoded)==0
   assert capture()==farimage,'distant save/rebase mismatch'
 
+ # Integrated player options, HUD and double-tap Creative flight.
+ getsettings=bind(engine,'play_get_settings',[C.c_void_p]);setting=bind(engine,'play_setting',[C.c_uint64,C.c_uint64]);spacepress=bind(engine,'play_space_press',[C.c_uint64]);capturemode=bind(engine,'play_set_capture',[C.c_uint64])
+ options=(C.c_uint32*8)();assert getsettings(options)==0 and list(options)==[95,100,0,0,0,100,0,0]
+ assert getplayer(pose)==0;initial_pitch=struct.unpack_from('<f',pose,28)[0]
+ assert setting(2,1)==0 and look(0,10)==0 and getplayer(pose)==0
+ assert struct.unpack_from('<f',pose,28)[0]>initial_pitch,'inverted mouse not applied'
+ assert setting(2,0)==0 and look(0,10)==0
+ assert setting(0,70)==0;zoomed=capture();assert setting(0,95)==0 and capture()!=zoomed,'FOV did not change projection'
+ assert setting(4,1)==0;coordinates=capture();assert setting(4,0)==0 and capture()!=coordinates,'coordinate HUD did not change'
+ assert setting(0,111)==-1 and getsettings(options)==0 and options[0]==95,'FOV invalid update'
+ assert capturemode(1)==0 and mode(1)==0 and spacepress(1000)==0 and spacepress(1251)==0 and getsettings(options)==0 and options[6]==0
+ assert spacepress(1400)==1 and getsettings(options)==0 and options[6]==1,'Creative double-tap flight'
+ assert getinventory(inv36)==0;owned=bytes(inv36);assert getplayer(pose)==0;before_flight=struct.unpack_from('<3d',pose)
+ for _ in range(10):assert step(16,100)==0
+ assert getplayer(pose)==0 and struct.unpack_from('<d',pose,8)[0]>before_flight[1]+9.9,'flight ascent'
+ y=struct.unpack_from('<d',pose,8)[0];assert step(0,100)==0 and getplayer(pose)==0 and struct.unpack_from('<d',pose,8)[0]==y,'flight gravity'
+ assert setting(5,200)==0 and step(64,100)==0 and getplayer(pose)==0
+ assert abs(struct.unpack_from('<d',pose,8)[0]-(y-2))<1e-8,'adjustable flight descent'
+ assert getinventory(inv36)==0 and bytes(inv36)==owned,'flight changed owned resources'
+ assert spacepress(2000)==0 and spacepress(2100)==1 and getsettings(options)==0 and options[6]==0,'double-tap flight off'
+ assert spacepress(3000)==0 and spacepress(3050)==1 and mode(0)==0 and getsettings(options)==0 and options[6]==0,'Survival retained flight'
+ assert spacepress(4000)==0 and spacepress(4050)==0 and getsettings(options)==0 and options[6]==0,'Survival entered flight'
+ assert setting(3,1)==0 and step(32,50)==0 and getsettings(options)==0 and options[7]==1
+ assert step(0,50)==0 and getsettings(options)==0 and options[7]==1,'toggle sprint did not latch'
+ assert step(32,50)==0 and getsettings(options)==0 and options[7]==0,'toggle sprint second press'
+ assert capturemode(0)==0 and getsettings(options)==0 and options[7]==0,'pause sprint state'
+ with tempfile.TemporaryDirectory() as optionsdir:
+  optionpath=str(Path(optionsdir)/'settings-load.vxa').encode();assert save(optionpath)==0
+  assert capturemode(1)==0 and mode(1)==0 and spacepress(5000)==0 and spacepress(5050)==1
+  assert load(optionpath)==0 and getsettings(options)==0 and options[6]==0,'load retained transient flight'
  assert stop()==0 and stop()==0 and error()==0
  assert setseed(43)==0 and start()==0 and getplayer(pose)==0
  assert C.cast(pose,C.POINTER(C.c_double))[1]==height(43,0,0)+1,'configured seed spawn'

@@ -1,5 +1,6 @@
 %include "abi.inc"
 %include "stream.inc"
+%include "world.inc"
 section .text
 extern generate_section, terrain_height, biome_at, cache_get, cache_find, cache_edit
 ; Stream96: seed0, embedded Cache24 at8, center SX32/SZ40,
@@ -274,8 +275,15 @@ FRAME stream_edit,152
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
+%if WORLD_REGISTRY = 2
+ cmp A2,BLOCK_COUNT
+ jae .bad
+ cmp A2,7
+ je .bad
+%else
  cmp A2,6
  ja .bad
+%endif
  cmp qword [A1+8],1
  jb .bad ; immutable bedrock
  call stream_get
