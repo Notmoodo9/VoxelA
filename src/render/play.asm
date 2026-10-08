@@ -22,7 +22,7 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
-extern recipe_missing
+extern recipe_missing, recipe_info
 extern craft_can_fill
 extern craft_collect, craft_preview, craft_click, craft_take, craft_repeat, craft_fill, craft_clear
 extern inventory_ui_position, inventory_ui_slot, inventory_ui_metrics
@@ -1450,6 +1450,62 @@ menu_record:
 .output:
  lea r10,[menu_result]
  ret
+; Small 3x3 recipe diagrams: display immutable pattern, never consume ingredients.
+FRAME menu_recipe_diagram,104
+ mov [rsp+32],A1
+ lea A1,[rsp+64]
+ call recipe_info
+ test rax,rax
+ jnz .done
+ mov qword [rsp+40],0
+.cell:
+ mov rax,[rsp+40]
+ xor edx,edx
+ mov ecx,3
+ div rcx
+ imul edx,11
+ add edx,230
+ cvtsi2ss xmm0,edx
+ movss [rect],xmm0
+ ; Recipe rows are top to bottom; HUD coordinates increase upward.
+ mov ecx,2
+ sub ecx,eax
+ imul ecx,11
+ add rcx,[rsp+32]
+ add ecx,2
+ cvtsi2ss xmm0,ecx
+ movss [rect+4],xmm0
+ mov dword [rect+8],__float32__(10.0)
+ mov dword [rect+12],__float32__(10.0)
+ mov dword [rect_color],__float32__(0.06)
+ mov dword [rect_color+4],__float32__(0.06)
+ mov dword [rect_color+8],__float32__(0.06)
+ call hud_rect
+ call menu_white
+ mov rax,[rsp+40]
+ movzx eax,word [rsp+80+rax*2]
+ test eax,eax
+ jz .next
+ lea r10,[item_tiles]
+ movzx eax,byte [r10+rax]
+ cvtsi2ss xmm0,eax
+ mulss xmm0,[tile_scale]
+ addss xmm0,[half_texel_u]
+ movss [rect_uv],xmm0
+ addss xmm0,[tile_span]
+ movss [rect_uv+8],xmm0
+ movss xmm0,[half_texel_v]
+ movss [rect_uv+4],xmm0
+ movss xmm0,[v_max]
+ movss [rect_uv+12],xmm0
+ call hud_rect
+ call menu_white
+.next:
+ inc qword [rsp+40]
+ cmp qword [rsp+40],9
+ jb .cell
+.done:
+END_FRAME menu_recipe_diagram,104
 FRAME play_menu_hud,72
  mov qword [hud_virtual],1
  lea A0,[inventory]
@@ -1761,6 +1817,9 @@ FRAME play_menu_hud,72
  mov A2,[rsp+40]
  add A2,12
  call hud_text
+ mov A0,[rsp+32]
+ mov A1,[rsp+40]
+ call menu_recipe_diagram
  cmp dword [inventory+292],1
  je .ordinary_badge
  cmp qword [rsp+48],1

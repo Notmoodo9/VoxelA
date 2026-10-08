@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -57,6 +57,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/game36_save.py $(BUILD)/libvoxela.so
 	python3 tests/container_store.py $(BUILD)/libvoxela.so
 	python3 tests/containers.py $(BUILD)/libvoxela.so
+	python3 tests/registry.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
 	python3 tests/ui_layout.py $(BUILD)/libvoxela.so
@@ -92,6 +93,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/game36_save.py $<
 	python3 tests/container_store.py $<
 	python3 tests/containers.py $<
+	python3 tests/registry.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
 	python3 tests/ui_layout.py $<

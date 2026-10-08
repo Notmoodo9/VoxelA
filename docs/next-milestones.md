@@ -27,6 +27,8 @@ The latest detailed answers are recorded in [confirmed game design decisions](ga
 - Preserve old terrain in existing worlds while new chunks use the new
   generator. New-side transition blending is required; legacy import cannot reconstruct unrecorded exploration history.
 
+Recent completed CPU work: [versioned container item/block metadata and six-recipe catalog](versioned-registry.md). The running recipe book now shows grid diagrams; registry2 gameplay integration is still pending.
+
 ## 1. Carried inventory, cursor and grid transactions
 
 - [x] Expand carried slots from9 to36 while retaining hotbar indices0–8 and

@@ -189,4 +189,10 @@ MATH_SHIM cosf
 %endmacro
 ALLOC_SHIM malloc
 ALLOC_SHIM free
+SHIM item_info
+SHIM block_info
+SHIM slot_valid
+SHIM recipe_catalog_info
+SHIM recipe_catalog_match
+
 section .note.GNU-stack noalloc noexec nowrite progbits

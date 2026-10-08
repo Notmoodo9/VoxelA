@@ -643,3 +643,9 @@ deleted. Removal never reuses IDs. A checked bounded codec supports empty/full
 stores and atomic loads. [Exact APIs, wire format and integration gates](docs/container-store.md).
 This is a tested CPU system; playable chest blocks/UI and world-save integration
 remain pending. The prototype64-record limit is not the final world limit.
+
+The recipe book now shows ingredient-grid diagrams for its existing recipes.
+An opt-in registry2 CPU catalog also defines stackable chest/table items, explicit
+item-to-block mappings, and their shaped recipes, while keeping registry1 saves
+and gameplay unchanged. Placement, container menus and combined world-save
+integration remain pending. [Registry contracts and integration gates](docs/versioned-registry.md).
