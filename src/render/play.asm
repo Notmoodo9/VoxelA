@@ -788,12 +788,21 @@ play_menu_pointer:
  mov [menu_pointer_y],A1
 .done: xor eax,eax
  ret
-; Shared pointer hit test: hotbar first row, storage in3 further rows.
+; Shared pointer hit test: storage above hotbar; recipe page retains its hotbar.
 menu_slot:
  cmp A0,32
  jb .none
  cmp A0,600
  jae .none
+ cmp qword [menu_page],0
+ jne .legacy_bounds
+ cmp A1,140
+ jb .none
+ cmp A1,196
+ jb .hotbar
+ cmp A1,210
+ jb .none
+.legacy_bounds:
  cmp A1,150
  jb .none
  cmp A1,386
@@ -815,7 +824,17 @@ menu_slot:
  test rax,rax
  jnz .none
 .row:
+ cmp qword [menu_page],0
+ jne .row_index
+ inc rax
+.row_index:
  imul r11,rax,9
+ jmp .column
+.hotbar:
+ mov r10,A0
+ sub r10,32
+ xor r11d,r11d
+.column:
  mov rax,r10
  xor edx,edx
  mov ecx,64
@@ -1274,9 +1293,9 @@ FRAME play_menu_hud,72
  mov dword [rect+4],0x41a00000
  mov dword [rect+8],0x44160000 ;600
  mov dword [rect+12],0x43dc0000 ;440
- mov dword [rect_color],0x3d800000
- mov dword [rect_color+4],0x3d800000
- mov dword [rect_color+8],0x3dc00000
+ mov dword [rect_color],__float32__(0.76)
+ mov dword [rect_color+4],__float32__(0.76)
+ mov dword [rect_color+8],__float32__(0.76)
  call hud_rect
  call menu_white
  lea A0,[menu_title]
@@ -1297,6 +1316,14 @@ FRAME play_menu_hud,72
  xor edx,edx
  mov ecx,9
  div rcx
+ cmp qword [menu_page],0
+ jne .visual_row
+ test rax,rax
+ jnz .storage_row
+ mov eax,4
+.storage_row:
+ dec rax
+.visual_row:
  mov [rsp+56],rax
  mov rax,rdx
  shl rax,6
@@ -1308,20 +1335,48 @@ FRAME play_menu_hud,72
  imul rax,60
  mov r10,330
  sub r10,rax
+ cmp qword [menu_page],0
+ jne .slot_y
+ cmp qword [rsp+32],9
+ jae .slot_y
+ sub r10,10
+.slot_y:
  mov [rsp+64],r10
  cvtsi2ss xmm0,r10
  movss [rect+4],xmm0
  mov dword [rect+8],0x42600000 ;56
  mov dword [rect+12],0x42600000
- mov dword [rect_color],0x3e400000
- mov dword [rect_color+4],0x3e400000
- mov dword [rect_color+8],0x3e800000
+ mov dword [rect_color],__float32__(0.35)
+ mov dword [rect_color+4],__float32__(0.35)
+ mov dword [rect_color+8],__float32__(0.35)
  mov rax,[rsp+32]
  cmp rax,[menu_drag_slot]
+ je .selected_border
+ cmp eax,[inventory+288]
  jne .border
+.selected_border:
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f600000
 .border:
+ call hud_rect
+ ; Light lower/right rim and inset gray well, two pixels wide.
+ call menu_white
+ mov rax,[rsp+40]
+ add eax,2
+ cvtsi2ss xmm0,eax
+ movss [rect],xmm0
+ mov dword [rect+8],__float32__(54.0)
+ mov dword [rect+12],__float32__(54.0)
+ call hud_rect
+ mov rax,[rsp+64]
+ add eax,2
+ cvtsi2ss xmm0,eax
+ movss [rect+4],xmm0
+ mov dword [rect+8],__float32__(52.0)
+ mov dword [rect+12],__float32__(52.0)
+ mov dword [rect_color],__float32__(0.55)
+ mov dword [rect_color+4],__float32__(0.55)
+ mov dword [rect_color+8],__float32__(0.55)
  call hud_rect
  call menu_white
  mov rax,[rsp+32]
@@ -1359,8 +1414,37 @@ FRAME play_menu_hud,72
  movzx edx,word [r10+rax*8+2]
  cmp ecx,10
  jb .count
+ ; Tools show remaining wear as a bar, never as a stack count.
  movzx edx,word [r10+rax*8+4]
+ mov eax,60
+ cmp ecx,10
+ je .wear_max
+ mov eax,132
+.wear_max:
+ cvtsi2ss xmm1,eax
+ cvtsi2ss xmm0,edx
+ divss xmm0,xmm1
+ mov eax,40
+ cvtsi2ss xmm1,eax
+ mulss xmm0,xmm1
+ movss [rect+8],xmm0
+ mov rax,[rsp+40]
+ add eax,8
+ cvtsi2ss xmm0,eax
+ movss [rect],xmm0
+ mov rax,[rsp+64]
+ add eax,5
+ cvtsi2ss xmm0,eax
+ movss [rect+4],xmm0
+ mov dword [rect+12],__float32__(3.0)
+ mov dword [rect_color],__float32__(0.15)
+ mov dword [rect_color+4],__float32__(0.85)
+ mov dword [rect_color+8],__float32__(0.15)
+ call hud_rect
+ jmp .empty
 .count:
+ cmp edx,1
+ jbe .empty
  mov eax,edx
  call hud_number
  lea A0,[number_text]
@@ -2010,9 +2094,9 @@ load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
 cursor_full_text: db 'PLACE HELD ITEMS BEFORE CLOSING',0
 fps_text: db 'FPS',0
 menu_tip: db 'TAB RECIPES - E OR ESC CLOSE',0
-menu_title: db 'INVENTORY AND CRAFTING',0
+menu_title: db 'INVENTORY',0
 menu_help: db 'LEFT MOVE RIGHT SPLIT SHIFT QUICK TAB RECIPES',0
-menu_items: db '9 HOTBAR SLOTS AND 27 STORAGE SLOTS',0
+menu_items: db 'STORAGE - HOTBAR BELOW',0
 menu_recipes: db 'RECIPES - CLICK TO CRAFT ONE BATCH',0
 menu_ready: db 'CRAFT',0
 menu_locked: db 'NOT READY',0

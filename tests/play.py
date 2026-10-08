@@ -44,17 +44,32 @@ try:
  image=capture();assert len(set(image[i:i+3] for i in range(0,len(image),4)))>200,'no texture/fog variation'
  # Storage/standard controls work independently of the hotbar.
  inv36=(C.c_ubyte*304)();assert menu(1)==0
- assert menuaction(40,340,2)==1 # shift dirt into storage
+ assert menuaction(40,160,2)==1 # shift dirt into storage
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,72)==(2,32)
- assert menuaction(40,280,1)==1 # split storage stack into cursor
+ assert menuaction(40,340,1)==1 # split storage stack into cursor
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,296)==(2,16)
- assert menuaction(104,280,1)==1 # place one in next storage slot
+ assert menuaction(104,340,1)==1 # place one in next storage slot
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,80)==(2,1)
- assert menuaction(168,280,0)==1 # place remaining15
- assert menuaction(168,280,2)==1 # shift remaining15 back to hotbar
- assert menuaction(104,340,0)==1 # pick up starter wood
- assert pointer(552,160)==0 and menurelease(552,160)==1 # drag into last storage slot
+ assert menuaction(168,340,0)==1 # place remaining15
+ assert menuaction(168,340,2)==1 # shift remaining15 back to hotbar
+ assert menuaction(104,160,0)==1 # pick up starter wood
+ assert pointer(552,220)==0 and menurelease(552,220)==1 # drag into last storage slot
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,280)==(5,8)
+ assert menuaction(40,200,0)==0,'storage/hotbar separator accepted a click'
+ # Walk the held wood stack through every empty cell in the reordered layout.
+ # This verifies visual-row indexing against actual serialized slot identities.
+ def slotpoint(index):
+  row=3 if index<9 else index//9-1
+  return (32+(index%9)*64+28,330-row*60+28-(10 if index<9 else 0))
+ source=35
+ for destination in [i for i in range(1,36) if i not in (9,10,35)]:
+  assert menuaction(*slotpoint(source),0)==1
+  assert menurelease(*slotpoint(destination))==1
+  assert getinventory(inv36)==0
+  assert struct.unpack_from('<HHHH',inv36,destination*8)==(5,8,0,0)
+  assert bytes(inv36[source*8:source*8+8])==bytes(8)
+  assert bytes(inv36[296:304])==bytes(8)
+  source=destination
  assert menu(0)==0 and stop()==0 and start()==0 and capture()==image
  # Real scaled inventory panel, read-only availability and clickable recipes.
  menu_inventory=(C.c_ubyte*304)()
