@@ -280,5 +280,13 @@ SHIM survival_mine_duration
 SHIM survival_mine_drop
 SHIM preferences_encode
 SHIM preferences_decode
+SHIM region_init
+SHIM region_valid
+SHIM region_generate
+SHIM region_get
+SHIM region_edit
+SHIM region_checksum
+SHIM region_encode
+SHIM region_decode
 SHIM landscape_sample
 section .note.GNU-stack noalloc noexec nowrite progbits

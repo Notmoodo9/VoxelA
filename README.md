@@ -303,7 +303,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 
 - [ ] Title screen, named world list, create/delete UI, seed and mode/difficulty entry.
 - [ ] Per-user world directories, settings and crash-safe metadata files.
-- [ ] Region-backed terrain/edits/containers/entities; remove global-journal limits.
+- [x] CPU/file-only: checksummed mixed-generator terrain regions preserving complete sections and edits.
+- [ ] Adopt region-backed terrain/edits/containers/entities in gameplay; remove global-journal limits.
 - [ ] Persist generator version per recorded chunk; explicit legacy import rules.
 - [ ] Bounded distance-prioritized generation/mesh/upload queues and cancellation.
 - [ ] Budgeted work per frame; incremental chunk meshes and frustum culling.
@@ -403,3 +404,5 @@ supported saves and unrelated changes, and never force-push.
 See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.md) for progressive world-derived meshes and their limits.
 
 See [candidate generator1 contracts](docs/generator1.md) for the new CPU terrain path and [persistent preferences](docs/preferences.md) for per-user settings.
+
+See [versioned terrain region contracts](docs/regions.md) for recorded-block preservation and pending streaming integration.

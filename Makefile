@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm src/world/terrain_surface.asm src/render/terrain_lod.asm src/world/noise3.asm src/world/generator1.asm src/game/mining_policy.asm src/game/preferences.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm src/world/terrain_surface.asm src/render/terrain_lod.asm src/world/noise3.asm src/world/generator1.asm src/game/mining_policy.asm src/game/preferences.asm src/world/region.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -68,6 +68,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/generator1.py $(BUILD)/libvoxela.so
 	python3 tests/mining_policy.py $(BUILD)/libvoxela.so
 	python3 tests/preferences.py $(BUILD)/libvoxela.so
+	python3 tests/regions.py $(BUILD)/libvoxela.so
 	python3 tests/terrain_lod.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
@@ -115,6 +116,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/generator1.py $<
 	python3 tests/mining_policy.py $<
 	python3 tests/preferences.py $<
+	python3 tests/regions.py $<
 	python3 tests/terrain_lod.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
@@ -128,7 +130,7 @@ endif
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
 SDL_LIBS ?= -lSDL2
 .PHONY: window
-IO_OBJECT = $(BUILD)/src/platform/save_file.o
+IO_OBJECT = $(BUILD)/src/platform/save_file.o $(BUILD)/src/platform/region_file.o
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
 $(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/play_window.o $(BUILD)/src/render/play.o $(IO_OBJECT)
@@ -164,6 +166,7 @@ $(SAVE_LIBRARY): $(OBJECTS) $(IO_OBJECT)
 save-reference: $(SAVE_LIBRARY)
 	python3 tests/snapshot.py $<
 	python3 tests/save_file.py $<
+	python3 tests/region_file.py $<
 
 $(BUILD)/src/render/play.o: assets/shaders/play.vert assets/shaders/play.frag assets/textures/blocks.rgba assets/textures/font5x7.bin include/gl.inc include/gl_names.inc
 ifeq ($(TARGET),linux)
