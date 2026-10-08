@@ -17,6 +17,7 @@ getproc=bind(sdl,'SDL_GL_GetProcAddress',[C.c_char_p],C.c_void_p)
 start=bind(engine,'play_init',[]);draw=bind(engine,'play_draw',[]);stop=bind(engine,'play_shutdown',[])
 look=bind(engine,'play_look',[C.c_int64,C.c_int64]);step=bind(engine,'play_step',[C.c_uint64,C.c_uint64]);resize=bind(engine,'play_resize',[C.c_uint64,C.c_uint64])
 getplayer=bind(engine,'play_get_player',[C.c_void_p]);pick=bind(engine,'play_pick',[]);hit=bind(engine,'play_get_hit',[C.c_void_p]);select=bind(engine,'play_select',[C.c_uint64]);apply=bind(engine,'play_apply',[C.c_uint64]);edit=bind(engine,'play_edit_cell',[C.c_void_p,C.c_uint64]);get=bind(engine,'play_get_block',[C.c_void_p])
+menu=bind(engine,'play_menu',[C.c_uint64]);menuopen=bind(engine,'play_menu_open',[]);menuclick=bind(engine,'play_menu_click',[C.c_uint64,C.c_uint64])
 mine=bind(engine,'play_mine',[C.c_uint64,C.c_uint64]);mode=bind(engine,'play_mode',[C.c_uint64]);craft=bind(engine,'play_craft',[C.c_uint64]);getinventory=bind(engine,'play_get_inventory',[C.c_void_p])
 save=bind(engine,'play_save',[C.c_char_p]);load=bind(engine,'play_load',[C.c_char_p]);capturemode=bind(engine,'play_set_capture',[C.c_uint64]);setseed=bind(engine,'play_seed',[C.c_uint64]);height=bind(engine,'terrain_height',[C.c_uint64,C.c_int64,C.c_int64])
 def gl(n,args,result=None):return C.CFUNCTYPE(result,*args)(getproc(n.encode()))
@@ -39,6 +40,39 @@ try:
   return bytes(pixels)
  assert start()==0,'initialization'
  image=capture();assert len(set(image[i:i+3] for i in range(0,len(image),4)))>200,'no texture/fog variation'
+ # Real scaled inventory panel, read-only availability and clickable recipes.
+ menu_inventory=(C.c_ubyte*80)()
+ assert getinventory(menu_inventory)==0;fresh_inventory=bytes(menu_inventory)
+ assert menu(2)==-1 and menuopen()==0 and menu(1)==0 and menuopen()==1
+ panel=capture();assert panel!=image,'inventory panel absent'
+ if len(sys.argv)>3:png(sys.argv[3],panel)
+ assert getplayer(pose)==0;menu_pose=bytes(pose)
+ assert step(1,100)==0 and look(100,100)==0 and getplayer(pose)==0 and bytes(pose)==menu_pose,'menu did not pause player'
+ assert apply(0)==0 and mine(1,100)==0
+ for x,y in [(640,340),(31,340),(90,340),(40,201),(10,10)]:assert menuclick(x,y)==0,'menu gap hit'
+ assert menuclick(40,132)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==fresh_inventory,'locked recipe consumed resources'
+ # Move dirt to the last slot, craft using items spread across slots.
+ assert menuclick(40,340)==1 and menuclick(552,340)==1
+ assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,64)==(2,32,0,0)
+ assert menuclick(50,220)==1 and menuclick(50,220)==1
+ assert menuclick(50,178)==1 and menuclick(50,136)==1
+ assert getinventory(menu_inventory)==0
+ assert struct.unpack_from('<HHHH',menu_inventory,24)==(10,1,60,0),'click crafting failed'
+ # A whole tool moves with its durability; closing a selected source loses none.
+ assert menuclick(232,340)==1 and menuclick(296,340)==1
+ assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,32)==(10,1,60,0)
+ assert menuclick(296,340)==1
+ assert getinventory(menu_inventory)==0;rearranged=bytes(menu_inventory)
+ with tempfile.TemporaryDirectory(prefix='VoxelA inventory menu ') as menu_folder:
+  menu_path=str(Path(menu_folder)/'inventory.vxa').encode()
+  assert save(menu_path)==0,'saving with a selected menu source failed'
+  assert menuclick(360,340)==1 and getinventory(menu_inventory)==0 and bytes(menu_inventory)!=rearranged
+  assert load(menu_path)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==rearranged,'menu arrangement/tool persistence'
+  # Successful loading clears the source highlight; this is a fresh selection.
+  assert menuclick(296,340)==1
+ assert menu(0)==0 and menuopen()==0
+ assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,32)==(10,1,60,0)
+ assert stop()==0 and start()==0 and capture()==image,'menu state did not reset'
  assert getplayer(pose)==0
  initial=bytes(pose)
  assert capturemode(0)==0;paused=capture();assert paused!=image,'pause HUD missing'

@@ -4,9 +4,11 @@ extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
 extern SDL_SetRelativeMouseMode, SDL_GetKeyboardState, SDL_GL_SwapWindow
+extern SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern play_menu, play_menu_open, play_menu_click
 extern play_mine, play_mode, play_craft, play_get_inventory
 extern play_pick, play_apply, play_select, play_set_capture, play_save, play_load, play_seed
 FRAME main,120
@@ -208,6 +210,9 @@ FRAME main,120
 .button_down:
  cmp dword [event],0x401
  jne .keyboard
+ call play_menu_open
+ test rax,rax
+ jnz .menu_click
  cmp byte [mouse_captured],0
  jne .edit_button
  cmp byte [event+16],1
@@ -219,6 +224,41 @@ FRAME main,120
  mov byte [mouse_captured],1
  mov A0,1
  call play_set_capture
+ jmp .loop
+.menu_click:
+ cmp byte [event+16],1
+ jne .loop
+ mov A0,[rsp+64]
+ lea A1,[input_width]
+ lea A2,[input_height]
+ call SDL_GetWindowSize
+ cmp dword [input_width],0
+ jle .loop
+ cmp dword [input_height],0
+ jle .loop
+ movsxd rax,dword [event+20]
+ test rax,rax
+ js .loop
+ imul rax,640
+ xor edx,edx
+ mov ecx,[input_width]
+ div rcx
+ mov [menu_x],rax
+ movsxd rax,dword [event+24]
+ test rax,rax
+ js .loop
+ mov ecx,[input_height]
+ dec ecx
+ sub rcx,rax
+ js .loop
+ mov rax,rcx
+ imul rax,480
+ xor edx,edx
+ mov ecx,[input_height]
+ div rcx
+ mov A1,rax
+ mov A0,[menu_x]
+ call play_menu_click
  jmp .loop
 .edit_button:
  cmp byte [event+16],1
@@ -242,6 +282,8 @@ FRAME main,120
  je .success
  cmp dword [event+20],27
  je .release
+ cmp dword [event+20],101
+ je .inventory
  cmp dword [event+20],1073741885
  je .mode
  cmp dword [event+20],1073741886
@@ -264,6 +306,31 @@ FRAME main,120
  mov A0,rax
  call play_select
  jmp .loop
+.inventory:
+ call play_menu_open
+ test rax,rax
+ jnz .close_inventory
+ mov A0,1
+ call play_menu
+ mov byte [mining_held],0
+ mov byte [click_pending],0
+ mov byte [mouse_captured],0
+ xor A0,A0
+ call SDL_SetRelativeMouseMode
+ xor A0,A0
+ call play_set_capture
+ jmp .loop
+.close_inventory:
+ xor A0,A0
+ call play_menu
+ mov A0,1
+ call SDL_SetRelativeMouseMode
+ test eax,eax
+ jnz .error
+ mov byte [mouse_captured],1
+ mov A0,1
+ call play_set_capture
+ jmp .loop
 .mode:
  lea A0,[inventory_state]
  call play_get_inventory
@@ -285,6 +352,8 @@ FRAME main,120
  mov byte [mining_held],0
  jmp .loop
 .release:
+ xor A0,A0
+ call play_menu
  mov byte [mining_held],0
  mov byte [mouse_captured],0
  mov byte [click_pending],0
@@ -542,4 +611,7 @@ click_pending: resb 1
 click_action: resb 1
 mining_held: resb 1
 inventory_state: resb 80
+input_width: resd 1
+input_height: resd 1
+menu_x: resq 1
 ELF_STACK

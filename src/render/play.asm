@@ -8,6 +8,7 @@ extern stream_init, stream_recenter, stream_get, stream_edit, terrain_height
 extern player_init, player_step, player_look, player_resize, player_ray, player_overlaps_cell
 extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
+extern inventory_can_craft, inventory_count, inventory_transfer
 extern inventory_init, inventory_add, inventory_craft, inventory_consume, inventory_wear, mine_duration
 FRAME compile_play_shader,72
  mov [rsp+48],A1
@@ -257,6 +258,9 @@ FRAME play_init,120
  call inventory_init
  mov qword [mining_time],0
  mov qword [mining_required],0
+ mov qword [menu_open],0
+ mov qword [menu_source],-1
+ mov qword [hud_virtual],0
  mov qword [selection_valid],0
  mov qword [captured],1
  lea r10,[ready_text]
@@ -274,12 +278,6 @@ FRAME play_init,120
 .fail: mov rax,-1
 .done:
 END_FRAME play_init,120
- lea r10,[save_buffer]
- mov [save_target],r10
- lea r10,[player]
- mov [load_bundle],r10
- lea r10,[inventory]
- mov [load_bundle+8],r10
 ; All mesh coordinates are relative to current stream center, avoiding float loss.
 FRAME play_rebuild,136
  mov qword [vertex_count],0
@@ -454,6 +452,8 @@ FRAME play_rebuild,136
 .done:
 END_FRAME play_rebuild,136
 FRAME play_step,72
+ cmp qword [menu_open],0
+ jne .paused
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov A2,A0
@@ -487,12 +487,20 @@ FRAME play_step,72
  js .done
  xor eax,eax
 .done:
+ jmp .exit
+.paused: xor eax,eax
+.exit:
 END_FRAME play_step,72
 FRAME play_look,40
+ cmp qword [menu_open],0
+ jne .paused
  mov A2,A1
  mov A1,A0
  lea A0,[player]
  call player_look
+ jmp .done
+.paused: xor eax,eax
+.done:
 END_FRAME play_look,40
 FRAME play_resize,56
  mov [rsp+32],A0
@@ -694,6 +702,97 @@ FRAME play_craft,40
  xor eax,eax
 .done:
 END_FRAME play_craft,40
+global play_menu
+play_menu:
+ cmp A0,1
+ ja .bad
+ mov [menu_open],A0
+ mov qword [menu_source],-1
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ cmp A0,0
+ je .done
+ mov qword [captured],0
+ lea r10,[menu_tip]
+ mov [status],r10
+.done: xor eax,eax
+ ret
+.bad: mov rax,-1
+ ret
+global play_menu_open
+play_menu_open:
+ mov rax,[menu_open]
+ ret
+; Virtual640x480 bottom-origin pointer coordinates; SDL adapter handles DPI.
+FRAME play_menu_click,72
+ cmp A0,640
+ jae .ignored
+ cmp A1,480
+ jae .ignored
+ cmp qword [menu_open],0
+ je .ignored
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ ; Inventory row: nine 56px slots spaced64px, y330..386.
+ cmp A1,330
+ jb .recipes
+ cmp A1,386
+ jae .ignored
+ cmp A0,32
+ jb .ignored
+ sub A0,32
+ mov rax,A0
+ xor edx,edx
+ mov ecx,64
+ div rcx
+ cmp rax,9
+ jae .ignored
+ cmp rdx,56
+ jae .ignored
+ cmp qword [menu_source],-1
+ jne .transfer
+ mov [menu_source],rax
+ inc rax
+ mov A0,rax
+ call play_select
+ mov eax,1
+ jmp .done
+.transfer:
+ mov A2,rax
+ mov A1,[menu_source]
+ lea A0,[inventory]
+ call inventory_transfer
+ mov qword [menu_source],-1
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ jmp .done
+.recipes:
+ mov rax,[rsp+32]
+ cmp rax,32
+ jb .ignored
+ cmp rax,608
+ jae .ignored
+ mov rax,[rsp+40]
+ cmp rax,80
+ jb .ignored
+ cmp rax,242
+ jae .ignored
+ mov rcx,241
+ sub rcx,rax
+ mov rax,rcx
+ xor edx,edx
+ mov ecx,42
+ div rcx
+ cmp edx,36
+ jae .ignored
+ cmp rax,4
+ jae .ignored
+ mov A0,rax
+ call play_craft
+ jmp .done
+.ignored: xor eax,eax
+.done:
+END_FRAME play_menu_click,72
 FRAME play_get_block,40
  mov A1,A0
  lea A0,[world]
@@ -727,6 +826,8 @@ FRAME play_edit_cell,72
 .done:
 END_FRAME play_edit_cell,72
 FRAME play_apply,56
+ cmp qword [menu_open],0
+ jne .rejected
  cmp A0,1
  ja .bad
  cmp qword [selection_valid],0
@@ -825,6 +926,8 @@ END_FRAME play_apply,56
 ; Holding left mouse advances only one unchanged target; release, tool/slot
 ; changes, pause, load and misses reset progress. Delta clamped like movement.
 FRAME play_mine,56
+ cmp qword [menu_open],0
+ jne .reset
  cmp A0,1
  ja .bad
  test A0,A0
@@ -907,6 +1010,10 @@ hud_rect:
  mulss xmm0,[rect+8]
  addss xmm0,[rect]
  cvtsi2ss xmm1,dword [screen_width]
+ cmp qword [hud_virtual],0
+ je .width
+ movss xmm1,[menu_width]
+.width:
  divss xmm0,xmm1
  addss xmm0,xmm0
  subss xmm0,[one_float]
@@ -916,6 +1023,10 @@ hud_rect:
  mulss xmm0,[rect+12]
  addss xmm0,[rect+4]
  cvtsi2ss xmm1,dword [screen_height]
+ cmp qword [hud_virtual],0
+ je .height
+ movss xmm1,[menu_height]
+.height:
  divss xmm0,xmm1
  addss xmm0,xmm0
  subss xmm0,[one_float]
@@ -1021,6 +1132,207 @@ hud_number:
  test al,al
  jnz .copy
  ret
+; All panel geometry uses640x480 virtual pixels, scaled by hud_rect. Pointer
+; hit rectangles use exactly the same coordinates at any drawable size/DPI.
+menu_white:
+ mov dword [rect_color],0x3f800000
+ mov dword [rect_color+4],0x3f800000
+ mov dword [rect_color+8],0x3f800000
+ mov dword [rect_uv],0xbf800000
+ mov dword [rect_uv+4],0xbf800000
+ mov dword [rect_uv+8],0xbf800000
+ mov dword [rect_uv+12],0xbf800000
+ ret
+FRAME play_menu_hud,72
+ mov qword [hud_virtual],1
+ call menu_white
+ mov dword [rect],0x41a00000 ;20
+ mov dword [rect+4],0x41a00000
+ mov dword [rect+8],0x44160000 ;600
+ mov dword [rect+12],0x43dc0000 ;440
+ mov dword [rect_color],0x3d800000
+ mov dword [rect_color+4],0x3d800000
+ mov dword [rect_color+8],0x3dc00000
+ call hud_rect
+ call menu_white
+ lea A0,[menu_title]
+ mov A1,32
+ mov A2,426
+ call hud_text
+ lea A0,[menu_help]
+ mov A1,32
+ mov A2,404
+ call hud_text
+ lea A0,[menu_items]
+ mov A1,32
+ mov A2,386
+ call hud_text
+ mov qword [rsp+32],0
+.slot:
+ mov rax,[rsp+32]
+ shl rax,6
+ add rax,32
+ mov [rsp+40],rax
+ cvtsi2ss xmm0,rax
+ movss [rect],xmm0
+ mov dword [rect+4],0x43a50000 ;330
+ mov dword [rect+8],0x42600000 ;56
+ mov dword [rect+12],0x42600000
+ mov dword [rect_color],0x3e400000
+ mov dword [rect_color+4],0x3e400000
+ mov dword [rect_color+8],0x3e800000
+ mov rax,[rsp+32]
+ cmp rax,[menu_source]
+ jne .border
+ mov dword [rect_color],0x3f800000
+ mov dword [rect_color+4],0x3f600000
+.border:
+ call hud_rect
+ call menu_white
+ mov rax,[rsp+32]
+ lea r10,[inventory]
+ movzx eax,word [r10+rax*8]
+ test eax,eax
+ jz .empty
+ lea r10,[item_tiles]
+ movzx eax,byte [r10+rax]
+ cvtsi2ss xmm0,eax
+ mulss xmm0,[tile_scale]
+ addss xmm0,[half_texel_u]
+ movss [rect_uv],xmm0
+ addss xmm0,[tile_span]
+ movss [rect_uv+8],xmm0
+ movss xmm0,[half_texel_v]
+ movss [rect_uv+4],xmm0
+ movss xmm0,[v_max]
+ movss [rect_uv+12],xmm0
+ mov rax,[rsp+40]
+ add eax,8
+ cvtsi2ss xmm0,eax
+ movss [rect],xmm0
+ mov dword [rect+4],0x43ae0000 ;348
+ mov dword [rect+8],0x42100000 ;36
+ mov dword [rect+12],0x42100000
+ call hud_rect
+ call menu_white
+ mov rax,[rsp+32]
+ lea r10,[inventory]
+ movzx ecx,word [r10+rax*8]
+ movzx edx,word [r10+rax*8+2]
+ cmp ecx,10
+ jb .count
+ movzx edx,word [r10+rax*8+4]
+.count:
+ mov eax,edx
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+40]
+ add A1,8
+ mov A2,332
+ call hud_text
+.empty:
+ inc qword [rsp+32]
+ cmp qword [rsp+32],9
+ jb .slot
+ ; Selected slot's item name, independent of the Creative build palette.
+ mov eax,[inventory+72]
+ lea r10,[inventory]
+ movzx eax,word [r10+rax*8]
+ lea r10,[material_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,32
+ mov A2,310
+ call hud_text
+ lea A0,[menu_recipes]
+ mov A1,32
+ mov A2,270
+ call hud_text
+ mov qword [rsp+32],0
+.recipe:
+ mov A1,[rsp+32]
+ lea A0,[inventory]
+ call inventory_can_craft
+ mov [rsp+48],rax
+ mov rax,[rsp+32]
+ imul rax,42
+ mov r10,206
+ sub r10,rax
+ mov [rsp+40],r10
+ cvtsi2ss xmm0,r10
+ movss [rect+4],xmm0
+ mov dword [rect],0x42000000 ;32
+ mov dword [rect+8],0x44100000 ;576
+ mov dword [rect+12],0x42100000 ;36
+ mov dword [rect_color],0x3e000000
+ mov dword [rect_color+4],0x3e000000
+ mov dword [rect_color+8],0x3e000000
+ cmp qword [rsp+48],1
+ jne .disabled
+ cmp dword [inventory+76],1
+ je .disabled
+ mov dword [rect_color+4],0x3e800000
+.disabled:
+ call hud_rect
+ call menu_white
+ mov rax,[rsp+32]
+ lea r10,[menu_recipe_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,44
+ mov A2,[rsp+40]
+ add A2,12
+ call hud_text
+ lea A0,[menu_locked]
+ cmp qword [rsp+48],1
+ jne .availability
+ lea A0,[menu_ready]
+.availability:
+ cmp dword [inventory+76],1
+ jne .badge
+ lea A0,[menu_creative]
+.badge:
+ mov A1,452
+ mov A2,[rsp+40]
+ add A2,12
+ call hud_text
+ inc qword [rsp+32]
+ cmp qword [rsp+32],4
+ jb .recipe
+ mov qword [rsp+32],0
+.owned:
+ mov rax,[rsp+32]
+ imul rax,144
+ add rax,32
+ mov [rsp+40],rax
+ mov rax,[rsp+32]
+ lea r10,[menu_count_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,[rsp+40]
+ mov A2,54
+ call hud_text
+ mov rax,[rsp+32]
+ lea r10,[menu_count_items]
+ mov A1,[r10+rax*8]
+ lea A0,[inventory]
+ call inventory_count
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+40]
+ add A1,84
+ mov A2,54
+ call hud_text
+ inc qword [rsp+32]
+ cmp qword [rsp+32],4
+ jb .owned
+ mov A0,[status]
+ mov A1,32
+ mov A2,30
+ call hud_text
+ mov qword [hud_virtual],0
+ xor eax,eax
+END_FRAME play_menu_hud,72
 FRAME play_hud,72
  mov qword [hud_count],0
  mov dword [rect_uv],0xbf800000
@@ -1030,22 +1342,18 @@ FRAME play_hud,72
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f800000
  mov dword [rect_color+8],0x3f800000
- lea A0,[controls_1]
+ cmp qword [menu_open],0
+ jne .menu_only
+ lea A0,[controls_2]
  mov A1,12
  mov eax,[screen_height]
  sub eax,24
  mov A2,rax
  call hud_text
- lea A0,[controls_2]
- mov A1,12
- mov eax,[screen_height]
- sub eax,44
- mov A2,rax
- call hud_text
  mov A0,[status]
  mov A1,12
  mov eax,[screen_height]
- sub eax,64
+ sub eax,44
  mov A2,rax
  call hud_text
  call play_selected_item
@@ -1059,6 +1367,8 @@ FRAME play_hud,72
  mov A1,rax
  mov A2,70
  call hud_text
+ cmp qword [menu_open],0
+ jne .crosshair
  cmp qword [captured],0
  jne .crosshair
  lea A0,[paused_text]
@@ -1094,12 +1404,6 @@ FRAME play_hud,72
  mov dword [rect+8],0x40000000
  mov dword [rect+12],0x41400000
  call hud_rect
- lea A0,[recipes_text]
- mov A1,12
- mov eax,[screen_height]
- sub eax,84
- mov A2,rax
- call hud_text
  lea A0,[survival_text]
  cmp dword [inventory+76],0
  je .mode_label
@@ -1107,7 +1411,7 @@ FRAME play_hud,72
 .mode_label:
  mov A1,12
  mov eax,[screen_height]
- sub eax,104
+ sub eax,64
  mov A2,rax
  call hud_text
  cmp qword [mining_required],0
@@ -1240,6 +1544,11 @@ FRAME play_hud,72
  inc qword [rsp+32]
  cmp qword [rsp+32],9
  jbe .slot
+ cmp qword [menu_open],0
+ je .upload
+.menu_only:
+ call play_menu_hud
+.upload:
  mov A0,0x8892
  mov r10d,[hud_pair+4]
  mov A1,r10
@@ -1444,6 +1753,7 @@ FRAME play_load,40
  test rax,rax
  jnz .fail
  mov qword [selection_valid],0
+ mov qword [menu_source],-1
  mov qword [mining_time],0
  mov qword [mining_required],0
  lea r10,[loaded_text]
@@ -1470,6 +1780,8 @@ tile_span: dd 0.05859375
 half_texel_v: dd 0.03125
 v_max: dd 0.96875
 shades: dd 0.7,0.8,0.45,1.0,0.6,0.85
+menu_width: dd 640.0
+menu_height: dd 480.0
 hundred_float: dd 100.0
 one_float: dd 1.0
 half_float: dd 0.5
@@ -1477,7 +1789,7 @@ six_float: dd 6.0
 outline_pad: dd 0.003
 outline_span: dd 1.006
 controls_1: db 'WASD MOVE SPACE JUMP SHIFT SPRINT',0
-controls_2: db '1-9 SLOT F4 MODE F5 SAVE F9 LOAD F10 QUIT',0
+controls_2: db 'E INVENTORY ESC PAUSE F5 SAVE F9 LOAD',0
 paused_text: db 'CLICK TO RESUME',0
 edit_full_text: db 'EDIT LIMIT REACHED - WORLD PRESERVED',0
 ready_text: db 'HOLD LEFT TO MINE - RIGHT TO PLACE',0
@@ -1485,7 +1797,26 @@ saved_text: db 'SAVED',0
 loaded_text: db 'LOADED',0
 save_failed_text: db 'SAVE FAILED - CHECK CONSOLE',0
 load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
-recipes_text: db 'Z PLANKS X STICKS C WOOD PICK V STONE PICK',0
+menu_tip: db 'CLICK A GREEN RECIPE TO CRAFT',0
+menu_title: db 'INVENTORY AND CRAFTING',0
+menu_help: db 'E OR ESC CLOSE - CLICK TWO SLOTS TO MOVE',0
+menu_items: db 'ITEMS - NUMBERS ARE COUNTS OR TOOL WEAR',0
+menu_recipes: db 'RECIPES - CLICK TO CRAFT ONE BATCH',0
+menu_ready: db 'CRAFT',0
+menu_locked: db 'NOT READY',0
+menu_creative: db 'SURVIVAL ONLY',0
+menu_recipe0: db '1 WOOD MAKES 4 PLANKS',0
+menu_recipe1: db '2 PLANKS MAKE 4 STICKS',0
+menu_recipe2: db '3 PLANKS 2 STICKS - WOOD PICK',0
+menu_recipe3: db '3 STONE 2 STICKS - STONE PICK',0
+menu_wood: db 'WOOD',0
+menu_planks: db 'PLANKS',0
+menu_sticks: db 'STICKS',0
+menu_stone: db 'STONE',0
+align 4
+menu_recipe_names: dd menu_recipe0-menu_recipe_names,menu_recipe1-menu_recipe_names,menu_recipe2-menu_recipe_names,menu_recipe3-menu_recipe_names
+menu_count_names: dd menu_wood-menu_count_names,menu_planks-menu_count_names,menu_sticks-menu_count_names,menu_stone-menu_count_names
+menu_count_items: dq 5,8,9,1
 survival_text: db 'SURVIVAL - FINITE ITEMS',0
 creative_text: db 'CREATIVE - UNLIMITED BLOCKS',0
 crafted_text: db 'CRAFTED',0
@@ -1561,6 +1892,9 @@ hud_vertices: resb 100000*32
 rect: resd 4
 rect_color: resd 3
 rect_uv: resd 4
+menu_open: resq 1
+menu_source: resq 1
+hud_virtual: resq 1
 captured: resq 1
 inventory: resb 80
 pending_inventory: resb 80

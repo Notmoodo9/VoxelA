@@ -34,6 +34,9 @@ SHIM camera_ray
 SHIM mix64
 SHIM fnv1a
 SHIM item_limit
+SHIM inventory_can_craft
+SHIM inventory_count
+SHIM inventory_transfer
 SHIM inventory_init
 SHIM inventory_valid
 SHIM inventory_add

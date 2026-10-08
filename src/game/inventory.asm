@@ -362,6 +362,103 @@ mine_duration:
  ret
 .bad: mov rax,-1
  ret
+ ; Read-only recipe previews use the same atomic executor on a scratch copy.
+FRAME inventory_can_craft,136
+ mov [rsp+32],A1
+ mov r10,A0
+ xor ecx,ecx
+.copy:
+ mov rax,[r10+rcx]
+ mov [rsp+48+rcx],rax
+ add ecx,8
+ cmp ecx,80
+ jb .copy
+ lea A0,[rsp+48]
+ mov A1,[rsp+32]
+ call inventory_craft
+END_FRAME inventory_can_craft,136
+global inventory_count
+inventory_count:
+ cmp A1,1
+ jb .none
+ cmp A1,11
+ ja .none
+ cmp A1,7
+ je .none
+ mov r10,A0
+ mov r11,A1
+ xor eax,eax
+ xor ecx,ecx
+.loop:
+ cmp [r10+rcx],r11w
+ jne .next
+ movzx edx,word [r10+rcx+2]
+ add eax,edx
+.next:
+ add ecx,8
+ cmp ecx,72
+ jb .loop
+ ret
+.none: xor eax,eax
+ ret
+; inventory_transfer(state,source0..8,destination0..8): merge resources,
+; move into empty slots, otherwise swap complete records (including tool wear).
+; No cursor-held item exists; all resources remain in serializable slots.
+FRAME inventory_transfer,56
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ mov [rsp+48],A2
+ cmp A1,9
+ jae .bad
+ cmp A2,9
+ jae .bad
+ call inventory_valid
+ test rax,rax
+ jnz .bad
+ mov r10,[rsp+32]
+ mov rcx,[rsp+40]
+ mov rdx,[rsp+48]
+ cmp rcx,rdx
+ je .unchanged
+ lea r11,[r10+rcx*8]
+ lea r10,[r10+rdx*8]
+ cmp qword [r11],0
+ je .unchanged
+ movzx eax,word [r11]
+ cmp eax,10
+ jae .swap
+ cmp [r10],ax
+ jne .swap
+ movzx ecx,word [r10+2]
+ mov edx,64
+ sub edx,ecx
+ test edx,edx
+ jz .unchanged
+ movzx eax,word [r11+2]
+ cmp edx,eax
+ cmova edx,eax
+ add ecx,edx
+ sub eax,edx
+ mov [r10+2],cx
+ mov [r11+2],ax
+ test eax,eax
+ jnz .changed
+ mov qword [r11],0
+ jmp .changed
+.swap:
+ mov rax,[r10]
+ mov rcx,[r11]
+ cmp rax,rcx
+ je .unchanged
+ mov [r10],rcx
+ mov [r11],rax
+.changed: mov eax,1
+ jmp .done
+.unchanged: xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME inventory_transfer,56
 section .rdata align=4
 recipes: dd 5,1,0,0,8,4, 8,2,0,0,9,4, 8,3,9,2,10,1, 1,3,9,2,11,1
 durations: dd 0,0,350,350,300,1200,150

@@ -29,4 +29,4 @@ with tempfile.TemporaryDirectory(prefix='VoxelA actual player ') as folder:
  for i,b in enumerate(data):value=((value^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
  assert value==struct.unpack_from('<Q',data,40)[0]
  assert not (Path(folder)/'voxela-world.vxa.tmp').exists()
- print(f'PASS: actual SDL player loop, crafting hotkeys, finite pickups/tool wear, held-mouse mining, walking/jumping across chunks (Z={z:.2f}), {count} persisted edits, F5/F9, Escape pause, click resume and F10 exit')
+ print(f'PASS: actual SDL player loop, E inventory menu, recipe mouse clicks, finite pickups/tool wear, held-mouse mining, walking/jumping across chunks (Z={z:.2f}), {count} persisted edits, F5/F9, Escape pause, click resume and F10 exit')

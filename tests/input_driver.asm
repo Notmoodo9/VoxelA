@@ -46,28 +46,32 @@ SDL_PollEvent:
  test r10,r10
  jz .initial_save
  cmp r10,1
- je .planks
+ je .inventory
  cmp r10,2
  je .planks
  cmp r10,3
- je .sticks
+ je .planks
  cmp r10,4
- je .pickaxe
+ je .sticks
  cmp r10,5
- je .select_tool
+ je .pickaxe
  cmp r10,6
- je .aim
+ je .inventory
  cmp r10,7
- je .break
+ je .select_tool
  cmp r10,8
- je .finish_save
+ je .aim
  cmp r10,9
- je .load
+ je .break
  cmp r10,10
- je .pause
+ je .finish_save
  cmp r10,11
- je .resume
+ je .load
  cmp r10,12
+ je .pause
+ cmp r10,13
+ je .resume
+ cmp r10,14
  je .quit
  xor eax,eax
  ret
@@ -88,15 +92,26 @@ SDL_PollEvent:
  inc qword [phase]
  mov eax,1
  ret
+.inventory:
+ mov r11d,101
+ jmp .craft_key
 .planks:
- mov r11d,122
- jmp .craft_key
+ mov r11d,324 ; top-origin window pixels -> virtual recipe0
+ jmp .recipe_click
 .sticks:
- mov r11d,120
- jmp .craft_key
+ mov r11d,377
+ jmp .recipe_click
 .pickaxe:
- mov r11d,99
- jmp .craft_key
+ mov r11d,429
+.recipe_click:
+ call .clear
+ mov dword [rdi],0x401
+ mov byte [rdi+16],1
+ mov dword [rdi+20],100
+ mov [rdi+24],r11d
+ inc qword [phase]
+ mov eax,1
+ ret
 .select_tool:
  mov r11d,53
 .craft_key:

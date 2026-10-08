@@ -10,6 +10,7 @@ def bind(name,args):
 init=bind('inventory_init',[C.c_void_p]);valid=bind('inventory_valid',[C.c_void_p])
 add=bind('inventory_add',[C.c_void_p,C.c_uint64,C.c_uint64,C.c_uint64])
 craft=bind('inventory_craft',[C.c_void_p,C.c_uint64]);wear=bind('inventory_wear',[C.c_void_p])
+preview=bind('inventory_can_craft',[C.c_void_p,C.c_uint64]);count=bind('inventory_count',[C.c_void_p,C.c_uint64]);transfer=bind('inventory_transfer',[C.c_void_p,C.c_uint64,C.c_uint64])
 consume=bind('inventory_consume',[C.c_void_p]);duration=bind('mine_duration',[C.c_void_p,C.c_uint64])
 limit=bind('item_limit',[C.c_uint64])
 def check(v,msg):
@@ -88,4 +89,28 @@ stone=next(i for i,s in enumerate(slots()) if s[0]==11);struct.pack_into('<I',st
 check(duration(state,1)==400,'stone speed');struct.pack_into('<I',state,76,1)
 check(duration(state,1)==1 and duration(state,7)==-1,'creative/bedrock')
 struct.pack_into('<I',state,72,0);check(consume(state)==1 and slots()[0][1]==31,'placement consumption')
+# Independent UI previews and resource-conserving slot moves, including tools.
+for _ in range(1500):
+ s=[]
+ for slot in range(9):
+  item=rng.choice([0,1,2,5,8,9,10,11])
+  s.append([item,1 if item>=10 else rng.randint(1,64),rng.randint(1,60 if item==10 else 132) if item>=10 else 0,0] if item else [0,0,0,0])
+ put(s,rng.randrange(9),rng.randrange(2));before=bytes(state)
+ recipe=rng.randrange(4)
+ check(preview(state,recipe)==(1 if model_craft(s,recipe) is not None else 0) and bytes(state)==before,'preview mutated input or mismatched recipe')
+ for item in [1,5,8,9,10,11]:check(count(state,item)==sum(v[1] for v in s if v[0]==item),'owned ingredient count')
+ source=rng.randrange(9);dest=rng.randrange(9);expected=[v[:] for v in s]
+ if source!=dest and expected[source][0]:
+  a=expected[source];b=expected[dest]
+  if a[0]==b[0] and a[0]<10:
+   n=min(a[1],64-b[1]);a[1]-=n;b[1]+=n
+   if not a[1]:a[:]=[0,0,0,0]
+  else:expected[source],expected[dest]=b,a
+ changed=expected!=s
+ check(transfer(state,source,dest)==int(changed) and slots()==expected,'slot transfer reference')
+ check(bytes(state)[72:]==before[72:] and valid(state)==0,'transfer metadata or canary')
+init(state);before=bytes(state)
+for a,b in [(9,0),(0,9),(2**64-1,0)]:check(transfer(state,a,b)==-1 and bytes(state)==before,'invalid transfer atomic')
+check(preview(state,4)==-1 and bytes(state)==before,'invalid recipe preview')
+for item in [0,7,12,65538,2**64-1]:check(count(state,item)==0,'invalid count aliases registered item')
 print(f'PASS: {checks} independent inventory/crafting/conservation/durability assertions')
