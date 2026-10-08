@@ -11,12 +11,11 @@ def check(v,m):
  checks+=1;assert v,m
 
 def xy(i,page):
- if page==1:return (32+i*64,330) if i<9 else None
  if i<36:return 160+(i%9)*36,88 if i<9 else 204-(i//9-1)*36
  if i<40:return 340+((i-36)%2)*36,334-((i-36)//2)*36
  return 448,316
 for page in (0,1):
- size=32 if page==0 else 56
+ size=32
  for i in range(41):
   out=(I*3)(-5,-6,999);want=xy(i,page)
   if want is None:check(pos(i,page,out)==-1 and tuple(out)==(-5,-6,999),'invalid position');continue
@@ -28,8 +27,8 @@ rng=random.Random(211)
 for page in (0,1):
  for _ in range(2500):
   x,y=rng.randrange(-10,650),rng.randrange(-10,490);want=-1
-  for i in range(41 if page==0 else 9):
-   sx,sy=xy(i,page);size=32 if page==0 else 56
+  for i in range(41):
+   sx,sy=xy(i,page);size=32
    if sx<=x<sx+size and sy<=y<sy+size:want=i;break
   check(hit(x,y,page)==want,'random hit')
 for w,h in [(800,600),(1600,900),(600,900),(1920,1080),(640,480),(1280,960),(1000,600)]:

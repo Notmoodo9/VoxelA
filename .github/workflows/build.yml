@@ -60,6 +60,7 @@ jobs:
       - run: /ucrt64/bin/python.exe tests/inventory2.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/world2.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/player_options.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/recipe_book.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/crafting.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/ui_layout.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/game_grid_save.py build/windows/${{ matrix.config }}/save_tests.dll

@@ -260,4 +260,10 @@ SHIM autosave_init
 SHIM autosave_poll
 SHIM autosave_finish
 SHIM format_i64
+SHIM book_init
+SHIM book_search
+SHIM book_append
+SHIM book_backspace
+SHIM book_scroll
+SHIM book_recipe
 section .note.GNU-stack noalloc noexec nowrite progbits

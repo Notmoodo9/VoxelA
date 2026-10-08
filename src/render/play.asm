@@ -22,8 +22,10 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
+extern book_init, book_search, book_append, book_backspace, book_scroll, book_recipe
 extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
-extern recipe_missing, recipe_info
+extern recipe_catalog_info
+extern recipe_missing
 extern craft_can_fill
 extern craft_collect, craft_preview, craft_click, craft_take, craft_repeat, craft_fill, craft_clear
 extern inventory_ui_position, inventory_ui_slot, inventory_ui_metrics
@@ -294,6 +296,9 @@ FRAME play_init,120
  mov qword [mining_required],0
  mov qword [menu_open],0
  mov qword [menu_page],0
+ lea A0,[recipe_browser]
+ call book_init
+ mov qword [book_focus],0
  mov qword [menu_pointer_x],320
  mov qword [menu_pointer_y],300
  mov qword [menu_drag_slot],-1
@@ -1014,6 +1019,7 @@ FRAME play_menu,56
  lea r10,[menu_tip]
  mov [status],r10
 .reset:
+ mov qword [book_focus],0
  mov qword [menu_drag_slot],-1
  mov qword [mining_time],0
  mov qword [mining_required],0
@@ -1036,6 +1042,7 @@ play_menu_tab:
  cmp qword [menu_open],0
  je .done
  xor qword [menu_page],1
+ mov qword [book_focus],0
 .done: xor eax,eax
  ret
 global play_menu_pointer
@@ -1048,6 +1055,83 @@ play_menu_pointer:
  mov [menu_pointer_y],A1
 .done: xor eax,eax
  ret
+global play_book_focused
+play_book_focused:
+ xor eax,eax
+ cmp qword [menu_open],0
+ je .done
+ cmp qword [menu_page],1
+ jne .done
+ mov rax,[book_focus]
+.done: ret
+global play_get_recipe_book
+play_get_recipe_book:
+ lea r10,[recipe_browser]
+ mov r11,A0
+ xor ecx,ecx
+.copy:
+ mov rax,[r10+rcx]
+ mov [r11+rcx],rax
+ add ecx,8
+ cmp ecx,64
+ jb .copy
+ xor eax,eax
+ ret
+FRAME play_book_backspace,40
+ cmp qword [menu_open],0
+ je .none
+ cmp qword [menu_page],1
+ jne .none
+ cmp qword [book_focus],0
+ je .none
+ lea A0,[recipe_browser]
+ call book_backspace
+ jmp .done
+.none: xor eax,eax
+.done:
+END_FRAME play_book_backspace,40
+FRAME play_book_scroll,40
+ cmp qword [menu_open],0
+ je .none
+ cmp qword [menu_page],1
+ jne .none
+ mov A1,A0
+ lea A0,[recipe_browser]
+ call book_scroll
+ jmp .done
+.none: xor eax,eax
+.done:
+END_FRAME play_book_scroll,40
+FRAME play_book_text,56
+ mov [rsp+32],A0
+ mov qword [rsp+40],0
+ cmp qword [menu_open],0
+ je .none
+ cmp qword [menu_page],1
+ jne .none
+ cmp qword [book_focus],0
+ je .none
+.loop:
+ mov r10,[rsp+32]
+ mov rax,[rsp+40]
+ movzx A1,byte [r10+rax]
+ test A1,A1
+ jz .accepted
+ cmp A1,32
+ jb .next
+ cmp A1,126
+ ja .next
+ lea A0,[recipe_browser]
+ call book_append
+.next:
+ inc qword [rsp+40]
+ cmp qword [rsp+40],32
+ jb .loop
+.accepted: mov eax,1
+ jmp .done
+.none: xor eax,eax
+.done:
+END_FRAME play_book_text,56
 FRAME menu_slot,40
  mov A2,[menu_page]
  call inventory_ui_slot
@@ -1125,32 +1209,80 @@ FRAME play_menu_action,72
  call craft_repeat
  jmp .done
 .recipe:
- cmp qword [menu_page],0
- je .grid_buttons
- cmp qword [menu_page],1
- jne .ignored
  cmp qword [rsp+48],0
  jne .ignored
+ ; Book toggle is shared by preview/book views.
  mov rax,[rsp+32]
- cmp rax,32
- jb .ignored
- cmp rax,608
+ cmp rax,284
+ jb .not_toggle
+ cmp rax,316
+ jae .not_toggle
+ mov rax,[rsp+40]
+ cmp rax,394
+ jb .not_toggle
+ cmp rax,414
+ jae .not_toggle
+ call play_menu_tab
+ mov eax,1
+ jmp .done
+.not_toggle:
+ cmp qword [menu_page],1
+ jne .grid_buttons
+ mov rax,[rsp+32]
+ cmp rax,320
+ jb .pane_click
+ cmp rax,332
  jae .ignored
  mov rax,[rsp+40]
- cmp rax,80
+ cmp rax,350
+ jb .scroll_down
+ cmp rax,368
+ jae .ignored
+ mov A0,1
+ call play_book_scroll
+ jmp .done
+.scroll_down:
+ cmp rax,266
  jb .ignored
- cmp rax,242
+ cmp rax,284
  jae .ignored
- mov rcx,241
- sub rcx,rax
- mov rax,rcx
- xor edx,edx
- mov ecx,42
- div rcx
- cmp edx,36
+ mov A0,-1
+ call play_book_scroll
+ jmp .done
+.pane_click:
+ mov rax,[rsp+32]
+ cmp rax,160
+ jb .ignored
+ cmp rax,316
  jae .ignored
+ mov rax,[rsp+40]
+ cmp rax,374
+ jb .book_rows
+ cmp rax,396
+ jae .ignored
+ mov qword [book_focus],1
+ mov eax,1
+ jmp .done
+.book_rows:
+ mov qword [book_focus],0
+ xor r11d,r11d
+ cmp rax,318
+ jb .second_row
+ cmp rax,366
+ jae .ignored
+ jmp .visible_recipe
+.second_row:
+ cmp rax,266
+ jb .ignored
+ cmp rax,314
+ jae .ignored
+ mov r11d,1
+.visible_recipe:
+ lea A0,[recipe_browser]
+ mov A1,r11
+ call book_recipe
  cmp rax,4
- jae .ignored
+ jae .ignored ; table/chest recipes pending playable registry2 migration
  cmp rax,2
  jb .book_fill
  mov A0,rax
@@ -1167,40 +1299,7 @@ FRAME play_menu_action,72
  mov [status],r10
  jmp .done
 .grid_buttons:
- cmp qword [rsp+48],0
- jne .ignored
  mov rax,[rsp+32]
- cmp rax,160
- jb .ignored
- cmp rax,312
- jae .clear_button
- mov rax,[rsp+40]
- xor r11d,r11d
- cmp rax,330
- jb .sticks_button
- cmp rax,354
- jae .ignored
- jmp .fill_button
-.sticks_button:
- cmp rax,294
- jb .book_button
- cmp rax,318
- jae .ignored
- mov r11d,1
- jmp .fill_button
-.book_button:
- cmp rax,266
- jb .ignored
- cmp rax,290
- jae .ignored
- call play_menu_tab
- mov eax,1
- jmp .done
-.fill_button:
- lea A0,[inventory]
- mov A1,r11
- call craft_fill
- jmp .done
 .clear_button:
  cmp rax,340
  jb .ignored
@@ -1605,42 +1704,367 @@ menu_record:
 .output:
  lea r10,[menu_result]
  ret
-; Small 3x3 recipe diagrams: display immutable pattern, never consume ingredients.
-FRAME menu_recipe_diagram,104
- mov [rsp+32],A1
- lea A1,[rsp+64]
- call recipe_info
+; Original pixel-art avatar and compact book reuse the same virtual canvas.
+FRAME menu_box,40
+ cvtsi2ss xmm0,A0
+ movss [rect],xmm0
+ cvtsi2ss xmm0,A1
+ movss [rect+4],xmm0
+ cvtsi2ss xmm0,A2
+ movss [rect+8],xmm0
+ cvtsi2ss xmm0,A3
+ movss [rect+12],xmm0
+ mov dword [rect_color],__float32__(0.22)
+ mov dword [rect_color+4],__float32__(0.24)
+ mov dword [rect_color+8],__float32__(0.25)
+ call hud_rect
+ call menu_white
+END_FRAME menu_box,40
+FRAME menu_player_pane,56
+ mov A0,200
+ mov A1,266
+ mov A2,120
+ mov A3,128
+ call menu_box
+ mov qword [rsp+32],0
+.avatar:
+ mov rax,[rsp+32]
+ shl rax,5
+ lea r10,[avatar_rects]
+ add r10,rax
+ mov rax,[r10]
+ mov [rect],rax
+ mov rax,[r10+8]
+ mov [rect+8],rax
+ mov rax,[r10+16]
+ mov [rect_color],rax
+ mov eax,[r10+24]
+ mov [rect_color+8],eax
+ call hud_rect
+ inc qword [rsp+32]
+ cmp qword [rsp+32],14
+ jb .avatar
+ call menu_white
+ mov qword [rsp+32],0
+.armor:
+ mov A0,160
+ mov rax,[rsp+32]
+ imul rax,32
+ mov A1,362
+ sub A1,rax
+ mov [rsp+40],A1
+ mov A2,32
+ mov A3,32
+ call menu_box
+
+ inc qword [rsp+32]
+ cmp qword [rsp+32],4
+ jb .armor
+ mov qword [rsp+32],0
+.ghosts:
+ mov rax,[rsp+32]
+ shl rax,5
+ lea r10,[armor_rects]
+ add r10,rax
+ mov rax,[r10]
+ mov [rect],rax
+ mov rax,[r10+8]
+ mov [rect+8],rax
+ mov rax,[r10+16]
+ mov [rect_color],rax
+ mov eax,[r10+24]
+ mov [rect_color+8],eax
+ call hud_rect
+ inc qword [rsp+32]
+ cmp qword [rsp+32],13
+ jb .ghosts
+ call menu_white
+END_FRAME menu_player_pane,56
+FRAME menu_book_pane,72
+ mov A0,160
+ mov A1,374
+ mov A2,156
+ mov A3,22
+ call menu_box
+ lea r11,[recipe_browser]
+ cmp byte [recipe_browser],0
+ jne .search_text
+ lea A0,[search_label]
+ jmp .search_draw
+.search_text:
+ xor ecx,ecx
+.length:
+ cmp byte [r11+rcx],0
+ je .tail
+ inc ecx
+ jmp .length
+.tail:
+ cmp ecx,11
+ jbe .whole_query
+ sub ecx,11
+ lea A0,[r11+rcx]
+ jmp .search_draw
+.whole_query:
+ mov A0,r11
+.search_draw:
+ mov A1,164
+ mov A2,379
+ call hud_text
+ cmp qword [book_focus],0
+ je .rows
+ lea A0,[search_cursor]
+ mov A1,302
+ mov A2,379
+ call hud_text
+.rows:
+ mov qword [rsp+32],0
+.row:
+ lea A0,[recipe_browser]
+ mov A1,[rsp+32]
+ call book_recipe
+ mov [rsp+40],rax
+ test rax,rax
+ js .empty
+ mov rax,[rsp+32]
+ imul rax,52
+ mov r10,318
+ sub r10,rax
+ mov [rsp+48],r10
+ mov A0,160
+ mov A1,r10
+ mov A2,156
+ mov A3,48
+ call menu_box
+ mov qword [rsp+56],0
+ cmp qword [rsp+40],4
+ jae .disabled
+ lea A0,[inventory]
+ mov A1,[rsp+40]
+ cmp A1,2
+ jae .tool_available
+ call craft_can_fill
+ jmp .available
+.tool_available:
+ call inventory_can_craft
+.available:
+ mov [rsp+56],rax
+ lea A0,[inventory]
+ mov A1,[rsp+40]
+ lea A2,[menu_missing]
+ call recipe_missing
+ mov [rsp+64],rax
+.disabled:
+ mov rax,[rsp+40]
+ lea r10,[book_short_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,198
+ mov A2,[rsp+48]
+ add A2,29
+ call hud_text
+ lea A0,[book_locked]
+ cmp qword [rsp+40],4
+ jae .badge
+ lea A0,[book_survival]
+ cmp dword [inventory+292],1
+ je .badge
+ lea A0,[book_ready]
+ cmp qword [rsp+56],1
+ je .badge
+ lea A0,[book_missing]
+ cmp qword [rsp+64],0
+ jne .badge
+ lea A0,[book_full]
+.badge:
+ mov A1,198
+ mov A2,[rsp+48]
+ add A2,9
+ call hud_text
+ mov rax,[rsp+40]
+ lea r10,[book_output_ids]
+ movzx eax,byte [r10+rax]
+ lea r10,[item_tiles]
+ movzx eax,byte [r10+rax]
+ cvtsi2ss xmm0,eax
+ mulss xmm0,[tile_scale]
+ addss xmm0,[half_texel_u]
+ movss [rect_uv],xmm0
+ addss xmm0,[tile_span]
+ movss [rect_uv+8],xmm0
+ movss xmm0,[half_texel_v]
+ movss [rect_uv+4],xmm0
+ movss xmm0,[v_max]
+ movss [rect_uv+12],xmm0
+ mov dword [rect],__float32__(164.0)
+ mov rax,[rsp+48]
+ add eax,10
+ cvtsi2ss xmm0,eax
+ movss [rect+4],xmm0
+ mov dword [rect+8],__float32__(28.0)
+ mov dword [rect+12],__float32__(28.0)
+ call hud_rect
+ call menu_white
+ cmp qword [rsp+40],2
+ jae .empty
+ lea A0,[four_label]
+ mov A1,180
+ mov A2,[rsp+48]
+ add A2,8
+ call hud_text
+.empty:
+ inc qword [rsp+32]
+ cmp qword [rsp+32],2
+ jb .row
+ cmp dword [recipe_browser+28],0
+ jne .scrollbar
+ lea A0,[no_recipes_label]
+ mov A1,166
+ mov A2,332
+ call hud_text
+.scrollbar:
+ mov A0,320
+ mov A1,284
+ mov A2,8
+ mov A3,64
+ call menu_box
+ mov dword [rect],__float32__(321.0)
+ mov dword [rect+8],__float32__(6.0)
+ mov dword [rect+12],__float32__(20.0)
+ mov eax,[recipe_browser+24]
+ imul eax,11
+ mov ecx,328
+ sub ecx,eax
+ cvtsi2ss xmm0,ecx
+ movss [rect+4],xmm0
+ call hud_rect
+ call menu_white
+ lea A0,[book_up]
+ mov A1,320
+ mov A2,352
+ call hud_text
+ lea A0,[book_down]
+ mov A1,320
+ mov A2,268
+ call hud_text
+END_FRAME menu_book_pane,72
+FRAME menu_book_tooltip,120
+ cmp qword [menu_page],1
+ jne .done
+ mov rax,[menu_pointer_x]
+ cmp rax,160
+ jb .done
+ cmp rax,316
+ jae .done
+ mov rax,[menu_pointer_y]
+ xor A1,A1
+ cmp rax,318
+ jb .second
+ cmp rax,366
+ jae .done
+ jmp .row
+.second:
+ cmp rax,266
+ jb .done
+ cmp rax,314
+ jae .done
+ mov A1,1
+.row:
+ lea A0,[recipe_browser]
+ call book_recipe
+ test rax,rax
+ js .done
+ mov [rsp+40],rax
+ mov A0,rax
+ mov A1,2
+ lea A2,[rsp+80]
+ call recipe_catalog_info
  test rax,rax
  jnz .done
- mov qword [rsp+40],0
-.cell:
+ cmp qword [rsp+40],4
+ jae .new_requirements
+ lea A0,[inventory]
+ mov A1,[rsp+40]
+ lea A2,[menu_missing]
+ call recipe_missing
+ jmp .position
+.new_requirements:
+ lea A0,[inventory]
+ mov A1,8
+ call inventory_count
+ xor ecx,ecx
+.grid_owned:
+ lea r10,[inventory+304]
+ cmp word [r10+rcx*8],8
+ jne .next_owned
+ movzx edx,word [r10+rcx*8+2]
+ add eax,edx
+.next_owned:
+ inc ecx
+ cmp ecx,4
+ jb .grid_owned
+ mov edx,4
+ cmp qword [rsp+40],4
+ je .subtract
+ mov edx,8
+.subtract:
+ sub edx,eax
+ jnc .missing
+ xor edx,edx
+.missing:
+ mov dword [menu_missing],8
+ mov [menu_missing+4],edx
+ mov qword [menu_missing+8],0
+.position:
+ mov rax,[menu_pointer_x]
+ add rax,18
+ mov ecx,444
+ cmp rax,rcx
+ cmova rax,rcx
+ mov [rsp+48],rax
+ mov rax,[menu_pointer_y]
+ add rax,18
+ mov ecx,304
+ cmp rax,rcx
+ cmova rax,rcx
+ mov [rsp+56],rax
+ mov A0,[rsp+48]
+ mov A1,rax
+ mov A2,176
+ mov A3,112
+ call menu_box
  mov rax,[rsp+40]
+ lea r10,[book_short_names]
+ movsxd rax,dword [r10+rax*4]
+ lea A0,[r10+rax]
+ mov A1,[rsp+48]
+ add A1,8
+ mov A2,[rsp+56]
+ add A2,92
+ call hud_text
+ mov qword [rsp+72],0
+.cell:
+ mov rax,[rsp+72]
  xor edx,edx
  mov ecx,3
  div rcx
- imul edx,11
- add edx,230
- cvtsi2ss xmm0,edx
- movss [rect],xmm0
- ; Recipe rows are top to bottom; HUD coordinates increase upward.
  mov ecx,2
  sub ecx,eax
- imul ecx,11
- add rcx,[rsp+32]
- add ecx,2
- cvtsi2ss xmm0,ecx
- movss [rect+4],xmm0
- mov dword [rect+8],__float32__(10.0)
- mov dword [rect+12],__float32__(10.0)
- mov dword [rect_color],__float32__(0.06)
- mov dword [rect_color+4],__float32__(0.06)
- mov dword [rect_color+8],__float32__(0.06)
- call hud_rect
- call menu_white
- mov rax,[rsp+40]
- movzx eax,word [rsp+80+rax*2]
+ imul ecx,20
+ add rcx,[rsp+56]
+ add rcx,26
+ imul edx,20
+ add rdx,[rsp+48]
+ add rdx,8
+ mov r11,rcx
+ mov A0,rdx
+ mov A1,r11
+ mov A2,18
+ mov A3,18
+ call menu_box
+ mov rax,[rsp+72]
+ movzx eax,word [rsp+96+rax*2]
  test eax,eax
- jz .next
+ jz .next_cell
  lea r10,[item_tiles]
  movzx eax,byte [r10+rax]
  cvtsi2ss xmm0,eax
@@ -1655,12 +2079,46 @@ FRAME menu_recipe_diagram,104
  movss [rect_uv+12],xmm0
  call hud_rect
  call menu_white
-.next:
- inc qword [rsp+40]
- cmp qword [rsp+40],9
+.next_cell:
+ inc qword [rsp+72]
+ cmp qword [rsp+72],9
  jb .cell
+ mov qword [rsp+64],0
+.kind:
+ mov rax,[rsp+64]
+ lea r10,[menu_missing]
+ cmp dword [r10+rax*8+4],0
+ je .next_kind
+ mov ecx,[r10+rax*8]
+ lea r10,[material_names]
+ movsxd rcx,dword [r10+rcx*4]
+ lea A0,[r10+rcx]
+ mov A1,[rsp+48]
+ add A1,74
+ imul rax,24
+ mov A2,[rsp+56]
+ add A2,64
+ sub A2,rax
+ call hud_text
+ mov rax,[rsp+64]
+ lea r10,[menu_missing]
+ mov eax,[r10+rax*8+4]
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+48]
+ add A1,154
+ mov rax,[rsp+64]
+ imul rax,24
+ mov A2,[rsp+56]
+ add A2,64
+ sub A2,rax
+ call hud_text
+.next_kind:
+ inc qword [rsp+64]
+ cmp qword [rsp+64],2
+ jb .kind
 .done:
-END_FRAME menu_recipe_diagram,104
+END_FRAME menu_book_tooltip,120
 FRAME play_menu_hud,72
  mov qword [hud_virtual],1
  lea A0,[inventory]
@@ -1671,41 +2129,33 @@ FRAME play_menu_hud,72
  call menu_slot
  mov [menu_hover],rax
  call menu_white
- mov dword [rect],__float32__(20.0)
- mov dword [rect+4],__float32__(20.0)
- mov dword [rect+8],__float32__(600.0)
- mov dword [rect+12],__float32__(440.0)
- cmp qword [menu_page],1
- je .panel
  mov dword [rect],__float32__(144.0)
  mov dword [rect+4],__float32__(64.0)
  mov dword [rect+8],__float32__(352.0)
  mov dword [rect+12],__float32__(352.0)
-.panel:
- mov dword [rect_color],__float32__(0.76)
- mov dword [rect_color+4],__float32__(0.76)
- mov dword [rect_color+8],__float32__(0.76)
+ mov dword [rect_color],__float32__(0.30)
+ mov dword [rect_color+4],__float32__(0.30)
+ mov dword [rect_color+8],__float32__(0.30)
+ call hud_rect
+ mov dword [rect],__float32__(148.0)
+ mov dword [rect+4],__float32__(68.0)
+ mov dword [rect+8],__float32__(344.0)
+ mov dword [rect+12],__float32__(344.0)
+ mov dword [rect_color],__float32__(0.80)
+ mov dword [rect_color+4],__float32__(0.80)
+ mov dword [rect_color+8],__float32__(0.80)
  call hud_rect
  call menu_white
- cmp qword [menu_page],0
- je .grid_labels
- lea A0,[menu_book_title]
- mov A1,32
- mov A2,426
- call hud_text
- lea A0,[menu_help]
- mov A1,32
- mov A2,404
- call hud_text
- lea A0,[menu_items]
- mov A1,32
- mov A2,386
- call hud_text
- jmp .labels_done
-.grid_labels:
+ mov dword [rect_color],__float32__(0.18)
+ mov dword [rect_color+4],__float32__(0.18)
+ mov dword [rect_color+8],__float32__(0.18)
  lea A0,[menu_title]
+ cmp qword [menu_page],0
+ je .heading
+ lea A0,[compact_book_title]
+.heading:
  mov A1,160
- mov A2,394
+ mov A2,400
  call hud_text
  lea A0,[grid_label]
  mov A1,340
@@ -1715,41 +2165,49 @@ FRAME play_menu_hud,72
  mov A1,160
  mov A2,244
  call hud_text
- ; Three real buttons: autofill log/sticks recipes, return grid ingredients.
- mov dword [rect],__float32__(160.0)
- mov dword [rect+4],__float32__(330.0)
- mov dword [rect+8],__float32__(152.0)
- mov dword [rect+12],__float32__(24.0)
- mov dword [rect_color],__float32__(0.35)
- mov dword [rect_color+4],__float32__(0.35)
- mov dword [rect_color+8],__float32__(0.35)
+ mov A0,284
+ mov A1,394
+ mov A2,32
+ mov A3,20
+ call menu_box
+ mov A0,288
+ mov A1,398
+ mov A2,11
+ mov A3,12
+ call menu_box
+ mov A0,301
+ mov A1,398
+ mov A2,11
+ mov A3,12
+ call menu_box
+ mov dword [rect],__float32__(290.0)
+ mov dword [rect+4],__float32__(400.0)
+ mov dword [rect+8],__float32__(7.0)
+ mov dword [rect+12],__float32__(8.0)
  call hud_rect
- mov dword [rect+4],__float32__(294.0)
- call hud_rect
- mov dword [rect],__float32__(340.0)
- mov dword [rect+4],__float32__(266.0)
- mov dword [rect+8],__float32__(136.0)
- call hud_rect
- mov dword [rect],__float32__(160.0)
- mov dword [rect+8],__float32__(152.0)
+ mov dword [rect],__float32__(303.0)
  call hud_rect
  call menu_white
- lea A0,[fill_wood_label]
- mov A1,164
- mov A2,335
- call hud_text
- lea A0,[fill_sticks_label]
- mov A1,164
- mov A2,299
- call hud_text
- lea A0,[book_button_label]
- mov A1,164
- mov A2,271
- call hud_text
+ ; Clear button and visible crafting-result arrow remain in both views.
+ mov A0,340
+ mov A1,266
+ mov A2,136
+ mov A3,24
+ call menu_box
  lea A0,[clear_grid_label]
  mov A1,348
  mov A2,271
  call hud_text
+ lea A0,[result_arrow]
+ mov A1,416
+ mov A2,326
+ call hud_text
+ cmp qword [menu_page],0
+ jne .book_pane
+ call menu_player_pane
+ jmp .labels_done
+.book_pane:
+ call menu_book_pane
 .labels_done:
  mov qword [rsp+32],0
 .slot:
@@ -1764,9 +2222,6 @@ FRAME play_menu_hud,72
  cvtsi2ss xmm0,rax
  movss [rect+4],xmm0
  mov eax,32
- cmp qword [menu_page],0
- je .slot_size
- mov eax,56
 .slot_size:
  mov [rsp+56],rax
  cvtsi2ss xmm0,eax
@@ -1897,176 +2352,9 @@ FRAME play_menu_hud,72
  call hud_text
 .empty:
  inc qword [rsp+32]
- cmp qword [menu_page],1
- jne .storage_count
- cmp qword [rsp+32],9
- jb .slot
- jmp .slots_done
-.storage_count:
  cmp qword [rsp+32],41
  jb .slot
 .slots_done:
- ; Selected slot's item name, independent of the Creative build palette.
- mov eax,[inventory+288]
- lea r10,[inventory]
- movzx eax,word [r10+rax*8]
- lea r10,[material_names]
- movsxd rax,dword [r10+rax*4]
- lea A0,[r10+rax]
- mov A1,160
- mov A2,48
- cmp qword [menu_page],0
- je .item_label
- mov A1,32
- mov A2,310
-.item_label:
- call hud_text
- cmp qword [menu_page],0
- je .after_recipes
- lea A0,[menu_recipes]
- mov A1,32
- mov A2,270
- call hud_text
- mov qword [rsp+32],0
-.recipe:
- mov A1,[rsp+32]
- lea A0,[inventory]
- cmp A1,2
- jae .bulk_availability
- call craft_can_fill
- jmp .available
-.bulk_availability:
- call inventory_can_craft
-.available:
- mov [rsp+48],rax
- lea A0,[inventory]
- mov A1,[rsp+32]
- lea A2,[menu_missing]
- call recipe_missing
- mov rax,[rsp+32]
- imul rax,42
- mov r10,206
- sub r10,rax
- mov [rsp+40],r10
- cvtsi2ss xmm0,r10
- movss [rect+4],xmm0
- mov dword [rect],0x42000000 ;32
- mov dword [rect+8],0x44100000 ;576
- mov dword [rect+12],0x42100000 ;36
- mov dword [rect_color],0x3e000000
- mov dword [rect_color+4],0x3e000000
- mov dword [rect_color+8],0x3e000000
- cmp qword [rsp+48],1
- jne .disabled
- cmp dword [inventory+292],1
- je .disabled
- mov dword [rect_color+4],0x3e800000
-.disabled:
- call hud_rect
- call menu_white
- mov rax,[rsp+32]
- lea r10,[menu_recipe_names]
- movsxd rax,dword [r10+rax*4]
- lea A0,[r10+rax]
- mov A1,44
- mov A2,[rsp+40]
- add A2,12
- call hud_text
- mov A0,[rsp+32]
- mov A1,[rsp+40]
- call menu_recipe_diagram
- cmp dword [inventory+292],1
- je .ordinary_badge
- cmp qword [rsp+48],1
- je .ordinary_badge
- mov eax,[menu_missing+4]
- add eax,[menu_missing+12]
- test eax,eax
- jnz .missing_items
-.ordinary_badge:
- lea A0,[menu_locked]
- cmp qword [rsp+48],1
- jne .availability
- lea A0,[menu_ready]
- cmp qword [rsp+32],2
- jae .availability
- lea A0,[menu_arrange]
-.availability:
- cmp dword [inventory+292],1
- jne .badge
- lea A0,[menu_creative]
-.badge:
- mov A1,452
- mov A2,[rsp+40]
- add A2,12
- call hud_text
- jmp .next_recipe
-.missing_items:
- mov qword [rsp+56],0
-.missing_kind:
- mov rax,[rsp+56]
- lea r10,[menu_missing]
- cmp dword [r10+rax*8+4],0
- je .next_missing
- mov ecx,[r10+rax*8]
- lea r10,[material_names]
- movsxd rcx,dword [r10+rcx*4]
- lea A0,[r10+rcx]
- imul rax,132
- add rax,300
- mov [rsp+64],rax
- mov A1,rax
- mov A2,[rsp+40]
- add A2,12
- call hud_text
- mov rax,[rsp+56]
- lea r10,[menu_missing]
- mov eax,[r10+rax*8+4]
- call hud_number
- lea A0,[number_text]
- mov A1,[rsp+64]
- add A1,84
- mov A2,[rsp+40]
- add A2,12
- call hud_text
-.next_missing:
- inc qword [rsp+56]
- cmp qword [rsp+56],2
- jb .missing_kind
-.next_recipe:
- inc qword [rsp+32]
- cmp qword [rsp+32],4
- jb .recipe
-.after_recipes:
- cmp qword [menu_page],0
- je .menu_status
- mov qword [rsp+32],0
-.owned:
- mov rax,[rsp+32]
- imul rax,144
- add rax,32
- mov [rsp+40],rax
- mov rax,[rsp+32]
- lea r10,[menu_count_names]
- movsxd rax,dword [r10+rax*4]
- lea A0,[r10+rax]
- mov A1,[rsp+40]
- mov A2,54
- call hud_text
- mov rax,[rsp+32]
- lea r10,[menu_count_items]
- mov A1,[r10+rax*8]
- lea A0,[inventory]
- call inventory_count
- call hud_number
- lea A0,[number_text]
- mov A1,[rsp+40]
- add A1,84
- mov A2,54
- call hud_text
- inc qword [rsp+32]
- cmp qword [rsp+32],4
- jb .owned
  .menu_status:
  mov A0,[status]
  mov A1,32
@@ -2107,7 +2395,7 @@ FRAME play_menu_hud,72
  jne .tooltip_done
  mov rax,[menu_hover]
  test rax,rax
- js .tooltip_done
+ js .book_tooltip
  call menu_record
  movzx eax,word [r10]
  test eax,eax
@@ -2146,6 +2434,9 @@ FRAME play_menu_hud,72
  mov A2,[rsp+48]
  add A2,5
  call hud_text
+ jmp .tooltip_done
+.book_tooltip:
+ call menu_book_tooltip
 .tooltip_done:
  mov qword [hud_virtual],0
  xor eax,eax
@@ -2729,34 +3020,12 @@ load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
 cursor_full_text: db 'PLACE HELD ITEMS BEFORE CLOSING',0
 fps_text: db 'FPS',0
 menu_tip: db 'TAB RECIPES - E OR ESC CLOSE',0
-book_button_label: db 'RECIPES',0
 grid_label: db 'CRAFTING',0
 storage_label: db 'STORAGE',0
-fill_wood_label: db 'FILL WOOD',0
-fill_sticks_label: db 'FILL STICKS',0
 clear_grid_label: db 'CLEAR GRID',0
-menu_book_title: db 'RECIPE BOOK',0
 menu_title: db 'INVENTORY',0
-menu_help: db 'LEFT MOVE RIGHT SPLIT SHIFT QUICK TAB RECIPES',0
-menu_items: db 'HOTBAR',0
-menu_recipes: db 'RECIPES - MISSING INGREDIENTS SHOWN',0
 arranged_text: db 'INGREDIENTS ARRANGED - TAKE THE RESULT',0
-menu_arrange: db 'ARRANGE',0
-menu_ready: db 'CRAFT',0
-menu_locked: db 'NO SPACE',0
-menu_creative: db 'SURVIVAL ONLY',0
-menu_recipe0: db '4 PLANKS',0
-menu_recipe1: db '4 STICKS',0
-menu_recipe2: db 'WOOD PICK',0
-menu_recipe3: db 'STONE PICK',0
-menu_wood: db 'WOOD',0
-menu_planks: db 'PLANKS',0
-menu_sticks: db 'STICKS',0
-menu_stone: db 'STONE',0
 align 4
-menu_recipe_names: dd menu_recipe0-menu_recipe_names,menu_recipe1-menu_recipe_names,menu_recipe2-menu_recipe_names,menu_recipe3-menu_recipe_names
-menu_count_names: dd menu_wood-menu_count_names,menu_planks-menu_count_names,menu_sticks-menu_count_names,menu_stone-menu_count_names
-menu_count_items: dq 5,8,9,1
 survival_text: db 'SURVIVAL - FINITE ITEMS',0
 creative_text: db 'CREATIVE - UNLIMITED BLOCKS',0
 crafted_text: db 'CRAFTED',0
@@ -2769,7 +3038,7 @@ planks_name: db 'PLANKS',0
 sticks_name: db 'STICKS',0
 wood_pick_name: db 'WOOD PICK',0
 stone_pick_name: db 'STONE PICK',0
-item_tiles: db 0,1,2,3,4,5,6,0,10,11,12,13
+item_tiles: db 0,1,2,3,4,5,6,0,10,11,12,13,14,15
 stone_name: db 'STONE',0
 dirt_name: db 'DIRT',0
 grass_name: db 'GRASS',0
@@ -2812,6 +3081,58 @@ axis_x: db 'X',0
 axis_y: db 'Y',0
 axis_z: db 'Z',0
 axis_names: dd axis_x-axis_names,axis_y-axis_names,axis_z-axis_names
+compact_book_title: db 'RECIPES',0
+result_arrow: db '>',0
+search_label: db 'SEARCH...',0
+search_cursor: db '_',0
+no_recipes_label: db 'NO RESULTS',0
+book_ready: db 'READY',0
+book_full: db 'FULL',0
+book_survival: db 'SURVIVAL',0
+book_missing: db 'MISSING',0
+book_locked: db 'LOCKED',0
+book_name0: db 'PLANKS',0
+book_name1: db 'STICKS',0
+book_name2: db 'W.PICK',0
+book_name3: db 'S.PICK',0
+book_name4: db 'TABLE',0
+book_name5: db 'CHEST',0
+book_short_names: dd book_name0-book_short_names,book_name1-book_short_names,book_name2-book_short_names,book_name3-book_short_names,book_name4-book_short_names,book_name5-book_short_names
+book_output_ids: db 8,9,10,11,12,13
+align 4
+avatar_rects:
+ dd __float32__(234.0),__float32__(273.0),__float32__(52.0),__float32__(7.0),__float32__(0.1),__float32__(0.11),__float32__(0.12),0
+ dd __float32__(239.0),__float32__(280.0),__float32__(20.0),__float32__(34.0),__float32__(0.2),__float32__(0.25),__float32__(0.4),0
+ dd __float32__(261.0),__float32__(280.0),__float32__(20.0),__float32__(34.0),__float32__(0.17),__float32__(0.2),__float32__(0.34),0
+ dd __float32__(239.0),__float32__(278.0),__float32__(20.0),__float32__(7.0),__float32__(0.12),__float32__(0.13),__float32__(0.16),0
+ dd __float32__(261.0),__float32__(278.0),__float32__(20.0),__float32__(7.0),__float32__(0.12),__float32__(0.13),__float32__(0.16),0
+ dd __float32__(237.0),__float32__(314.0),__float32__(46.0),__float32__(36.0),__float32__(0.12),__float32__(0.56),__float32__(0.56),0
+ dd __float32__(225.0),__float32__(314.0),__float32__(12.0),__float32__(36.0),__float32__(0.12),__float32__(0.5),__float32__(0.5),0
+ dd __float32__(283.0),__float32__(314.0),__float32__(12.0),__float32__(36.0),__float32__(0.09),__float32__(0.42),__float32__(0.42),0
+ dd __float32__(225.0),__float32__(306.0),__float32__(12.0),__float32__(14.0),__float32__(0.67),__float32__(0.44),__float32__(0.28),0
+ dd __float32__(283.0),__float32__(306.0),__float32__(12.0),__float32__(14.0),__float32__(0.67),__float32__(0.44),__float32__(0.28),0
+ dd __float32__(247.0),__float32__(350.0),__float32__(28.0),__float32__(28.0),__float32__(0.7),__float32__(0.48),__float32__(0.3),0
+ dd __float32__(247.0),__float32__(370.0),__float32__(28.0),__float32__(8.0),__float32__(0.23),__float32__(0.14),__float32__(0.09),0
+ dd __float32__(251.0),__float32__(358.0),__float32__(6.0),__float32__(4.0),__float32__(0.13),__float32__(0.2),__float32__(0.3),0
+ dd __float32__(265.0),__float32__(358.0),__float32__(6.0),__float32__(4.0),__float32__(0.13),__float32__(0.2),__float32__(0.3),0
+four_label: db '4',0
+book_up: db '^',0
+book_down: db 'V',0
+align 4
+armor_rects:
+ dd __float32__(168.0),__float32__(384.0),__float32__(16.0),__float32__(5.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(168.0),__float32__(374.0),__float32__(4.0),__float32__(12.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(180.0),__float32__(374.0),__float32__(4.0),__float32__(12.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(166.0),__float32__(348.0),__float32__(6.0),__float32__(8.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(182.0),__float32__(348.0),__float32__(6.0),__float32__(8.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(170.0),__float32__(336.0),__float32__(14.0),__float32__(20.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(168.0),__float32__(304.0),__float32__(6.0),__float32__(18.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(178.0),__float32__(304.0),__float32__(6.0),__float32__(18.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(168.0),__float32__(318.0),__float32__(16.0),__float32__(5.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(168.0),__float32__(272.0),__float32__(8.0),__float32__(5.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(178.0),__float32__(272.0),__float32__(8.0),__float32__(5.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(170.0),__float32__(277.0),__float32__(6.0),__float32__(10.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
+ dd __float32__(180.0),__float32__(277.0),__float32__(6.0),__float32__(10.0),__float32__(0.5),__float32__(0.53),__float32__(0.55),0
 section .bss align=16
 gl: resq GL_PROC_COUNT
 vertex_shader: resd 1
@@ -2874,4 +3195,6 @@ space_tick: resd 1
 coordinate_text: resb 24
 
 settings_feedback: resq 1
+recipe_browser: resb 64
+book_focus: resq 1
 ELF_STACK

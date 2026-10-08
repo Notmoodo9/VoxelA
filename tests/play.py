@@ -73,7 +73,7 @@ try:
  assert menu(0)==0 and stop()==0 and start()==0 and capture()==image
  # Playable shaped2x2 grid: autofill, previews, result, shift-repeat and saves.
  grid=(C.c_ubyte*32)();assert menu(1)==0
- assert menuclick(180,342)==1 and getgrid(grid)==0
+ assert menuclick(300,404)==1 and menuclick(180,342)==1 and getgrid(grid)==0
  assert struct.unpack_from('<HH',grid,0)==(5,1)
  crafting_image=capture();assert crafting_image!=image,'crafting grid preview absent'
  if len(sys.argv)>4:png(sys.argv[4],crafting_image)
@@ -86,7 +86,7 @@ try:
  assert menuclick(464,332)==1 and getinventory(inv36)==0
  assert struct.unpack_from('<HH',inv36,296)==(9,4)
  assert menuclick(284,104)==1
- assert menuclick(180,342)==1
+ assert menuclick(300,404)==1 and menuclick(180,342)==1
  with tempfile.TemporaryDirectory(prefix='VoxelA shaped grid ') as grid_folder:
   grid_path=str(Path(grid_folder)/'grid.vxa').encode();assert save(grid_path)==0
   saved_grid=bytes(grid);assert getgrid(grid)==0;saved_grid=bytes(grid)
@@ -94,7 +94,7 @@ try:
   assert load(grid_path)==0 and getgrid(grid)==0 and bytes(grid)==saved_grid,'persisted grid changed'
  assert menu(0)==0 and getgrid(grid)==0 and bytes(grid)==saved_grid,'closing lost grid ingredients'
  assert menu(1)==0 and menuaction(464,332,2)==1 and getgrid(grid)==0 and bytes(grid)==bytes(32)
- assert menuclick(180,306)==1 and menuaction(464,332,2)==1,'sticks autofill/repeat'
+ assert menuclick(300,404)==1 and menuclick(180,290)==1 and menuaction(464,332,2)==1,'sticks autofill/repeat'
  assert pointer(284,104)==0 and menunumber(8)==1 and getinventory(inv36)==0
  assert struct.unpack_from('<HH',inv36,64)==(9,8),'hovered number-key swap'
  assert menuclick(464,104)==1 and menuaction(464,104,3)==0 and menuclick(464,104)==1,'double-click full matching cursor'
@@ -106,7 +106,7 @@ try:
  menu_fps_before=capture()
  for _ in range(60):assert frametime(17)==0
  assert capture()!=menu_fps_before,'menu FPS did not update'
- assert menuclick(180,278)==1 and menutab()==0 and menu(0)==0,'recipe button navigation'
+ assert menuclick(300,404)==1 and menutab()==0 and menu(0)==0,'recipe button navigation'
  assert stop()==0 and start()==0 and capture()==image
  # Real scaled inventory panel, read-only availability and clickable recipes.
  menu_inventory=(C.c_ubyte*304)()
@@ -121,32 +121,41 @@ try:
  recipe_image=capture();assert recipe_image!=panel,'recipe requirements panel absent'
  if len(sys.argv)>5:png(sys.argv[5],recipe_image)
  for x,y in [(640,340),(31,340),(90,340),(40,201),(10,10)]:assert menuclick(x,y)==0,'menu gap hit'
- assert menuclick(40,132)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==fresh_inventory,'locked recipe consumed resources'
+ booktext=bind(engine,'play_book_text',[C.c_void_p]);bookback=bind(engine,'play_book_backspace',[]);bookscroll=bind(engine,'play_book_scroll',[C.c_int64]);getbook=bind(engine,'play_get_recipe_book',[C.c_void_p]);browser=(C.c_ubyte*64)()
+ def search_ui(text):
+  assert menuclick(180,384)==1
+  for _ in range(16):bookback()
+  assert booktext(text.encode())==1 and getbook(browser)==0
+ search_ui('PICK');assert struct.unpack_from('<I',browser,28)[0]==2
+ assert menuclick(180,342)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==fresh_inventory,'locked recipe consumed resources'
+ search_ui('NO MATCH');assert struct.unpack_from('<I',browser,28)[0]==0 and menuclick(180,342)==0
+ search_ui('');assert menuclick(324,274)==1 and menuclick(324,358)==1 and bookscroll(-1)==1 and bookscroll(1)==1 and getbook(browser)==0 and struct.unpack_from('<I',browser,24)[0]==0
+ assert pointer(180,342)==0;requirements_image=capture();assert pointer(500,400)==0 and capture()!=requirements_image,'recipe shape/missing tooltip absent'
  # Move dirt to the last slot, craft using items spread across slots.
- assert menuclick(40,340)==1 and menuclick(552,340)==1
+ assert menuclick(176,104)==1 and menuclick(464,104)==1
  assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,64)==(2,32,0,0)
  # Recipe selection arranges ingredients; only the explicit result consumes.
  def book_craft(y):
   assert getinventory(menu_inventory)==0;before=bytes(menu_inventory)
-  assert menuclick(50,y)==1 and getgrid(grid)==0 and getinventory(menu_inventory)==0
-  assert sum(struct.unpack_from('<HH',menu_inventory,i*8)[1] for i in range(36) if struct.unpack_from('<H',menu_inventory,i*8)[0]==(8 if y==220 else 9))==sum(struct.unpack_from('<HH',before,i*8)[1] for i in range(36) if struct.unpack_from('<H',before,i*8)[0]==(8 if y==220 else 9)),'recipe selection created output'
+  assert menuclick(180,y)==1 and getgrid(grid)==0 and getinventory(menu_inventory)==0
+  assert sum(struct.unpack_from('<HH',menu_inventory,i*8)[1] for i in range(36) if struct.unpack_from('<H',menu_inventory,i*8)[0]==(8 if y==342 else 9))==sum(struct.unpack_from('<HH',before,i*8)[1] for i in range(36) if struct.unpack_from('<H',before,i*8)[0]==(8 if y==342 else 9)),'recipe selection created output'
   assert menuaction(464,332,2)==1 and menutab()==0
- book_craft(220);book_craft(220);book_craft(178)
- assert menuclick(50,136)==1
+ book_craft(342);book_craft(342);book_craft(290)
+ search_ui('WOOD');assert menuclick(180,342)==1
  assert getinventory(menu_inventory)==0
  assert struct.unpack_from('<HHHH',menu_inventory,24)==(10,1,60,0),'click crafting failed'
  # A whole tool moves with its durability; closing a selected source loses none.
- assert menuclick(232,340)==1 and menuclick(296,340)==1
+ assert menuclick(268,104)==1 and menuclick(304,104)==1
  assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,32)==(10,1,60,0)
- assert menuclick(296,340)==1
+ assert menuclick(304,104)==1
  assert getinventory(menu_inventory)==0;rearranged=bytes(menu_inventory)
  with tempfile.TemporaryDirectory(prefix='VoxelA inventory menu ') as menu_folder:
   menu_path=str(Path(menu_folder)/'inventory.vxa').encode()
   assert save(menu_path)==0,'saving with a selected menu source failed'
-  assert menuclick(360,340)==1 and getinventory(menu_inventory)==0 and bytes(menu_inventory)!=rearranged
+  assert menuclick(340,104)==1 and getinventory(menu_inventory)==0 and bytes(menu_inventory)!=rearranged
   assert load(menu_path)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==rearranged,'menu arrangement/tool persistence'
   # Successful loading clears the source highlight; this is a fresh selection.
-  assert menuclick(296,340)==1
+  assert menuclick(304,104)==1
  assert menu(0)==0 and menuopen()==0
  assert getinventory(menu_inventory)==0
  assert sum(struct.unpack_from('<H',menu_inventory,i*8)[0]==10 for i in range(36))==1 and bytes(menu_inventory[296:])==bytes(8)

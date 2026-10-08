@@ -8,6 +8,8 @@ extern SDL_GetModState, SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern SDL_StartTextInput, SDL_StopTextInput
+extern play_book_text, play_book_backspace, play_book_scroll, play_book_focused
 extern play_scroll, play_copy_block, play_menu_number, play_menu_clear
 extern inventory_ui_pointer
 extern autosave_init, autosave_poll, autosave_finish
@@ -317,6 +319,9 @@ FRAME main,120
  mov byte [click_pending],1
  jmp .loop
 .wheel:
+ call play_menu_open
+ test rax,rax
+ jnz .book_wheel
  cmp byte [mouse_captured],0
  je .loop
  movsxd r10,dword [event+20]
@@ -327,15 +332,36 @@ FRAME main,120
  mov A0,r10
  call play_scroll
  jmp .loop
+.book_wheel:
+ movsxd A0,dword [event+20]
+ cmp dword [event+24],1
+ jne .book_wheel_ready
+ neg A0
+.book_wheel_ready:
+ call play_book_scroll
+ jmp .loop
 .copy_block:
  call play_pick
  call play_copy_block
  jmp .loop
 .keyboard:
+ cmp dword [event],0x303
+ je .book_text
  cmp dword [event],0x300
  jne .loop
  cmp byte [event+13],0
  jne .loop
+ call play_book_focused
+ test rax,rax
+ jz .book_keys_done
+ cmp dword [event+20],8
+ je .book_backspace
+ cmp dword [event+20],32
+ jb .book_keys_done
+ cmp dword [event+20],126
+ ja .book_keys_done
+ jmp .loop
+.book_keys_done:
  cmp dword [event+20],1073741891 ; F10
  je .success
  cmp dword [event+20],27
@@ -396,6 +422,13 @@ FRAME main,120
 .number_swap:
  mov A0,[menu_number]
  call play_menu_number
+ jmp .loop
+.book_text:
+ lea A0,[event+12]
+ call play_book_text
+ jmp .loop
+.book_backspace:
+ call play_book_backspace
  jmp .loop
 .space_press:
  call SDL_GetTicks
@@ -468,6 +501,9 @@ FRAME main,120
  jnz .close_inventory
  mov A0,1
  call play_menu
+ mov A0,1
+ call window_autosave
+ call SDL_StartTextInput
  mov byte [mining_held],0
  mov byte [click_pending],0
  mov byte [mouse_captured],0
@@ -481,6 +517,7 @@ FRAME main,120
  call play_menu
  test rax,rax
  jnz .loop
+ call SDL_StopTextInput
  mov A0,1
  call SDL_SetRelativeMouseMode
  test eax,eax

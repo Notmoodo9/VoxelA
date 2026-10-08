@@ -17,7 +17,8 @@ The game has first-person walking, mouse look, gravity/jumping/collision,
 mining/building, an original texture atlas, FPS, nine hotbar slots plus 27 storage
 slots, Creative flight, adjustable FOV, mouse and sprint settings, coordinates,
 autosaving, standard cursor/drag/split/Shift inventory controls, a player 2×2 crafting
-grid, recipe-book diagrams/autofill, pickaxe wear, and manual/automatic checksummed saves.
+grid, a searchable/scrollable recipe book, player preview and armor silhouettes,
+pickaxe wear, and manual/automatic checksummed saves.
 F4 switches between finite Survival resources and an unlimited Creative palette.
 
 Terrain is frozen generator0: heights64–79, surface layers and climate-derived
@@ -82,7 +83,8 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | [ / ] / - / = | FOV decrease/increase / sensitivity decrease/increase |
 | I / T / F3 / , / . | Invert mouse / toggle sprint / coordinates / slower/faster flight |
 | F4 / middle mouse | Toggle Creative / copy aimed supported block in Creative |
-| E / Tab | Inventory / recipe book |
+| E / Tab or book button | Inventory / switch player-and-armor area to recipe book |
+| Click search / type / Backspace / wheel or arrows | Focus recipe search / filter / edit / scroll |
 | Left/right inventory click | Move/merge stacks / split or place one |
 | Drag / Shift-click / hovered1–9 | Place held stack / quick transfer / hotbar swap |
 | Result click / Shift-result | Craft one batch / repeat while ingredients fit |
@@ -99,7 +101,9 @@ retain player pose, mode,36slots, cursor, player grid and recorded edits. Older
 supported save formats migrate through their frozen validators. Current-directory
 saves are a prototype limitation; per-user multiworld storage is planned. Autosaves occur every five minutes, on
 Escape pause and orderly exit. Failed periodic saves retry after ten seconds;
-errors retain the previous file and live state. Settings feedback displays
+errors retain the previous file and live state. Opening the currently paused
+inventory also saves. Search-focused E types into the book; Tab/click leaves
+search, and Escape closes/pauses. Settings feedback displays
 current values briefly after changes. FOV is vertical,60–110 degrees; sensitivity
 is10–300%; flight speed25–400%. Settings reset on startup; flight/sprint state
 reset on load or mode changes, and flight is available only in Creative.
@@ -156,6 +160,7 @@ its gameplay tasks. Keep existing save/generator contracts while adding versions
 - [x] CPU reference models and Microsoft x64 ABI regression checks.
 - [x] Assembly runner, offscreen graphics and scripted real SDL input checks.
 - [x] Main-push Windows executable/artifact workflow and license-aware packaging.
+- [x] Update packaged controls to match current flight/settings/autosave/book behavior.
 - [ ] Complete native Windows graphics, debug/unwind and standalone launch checks.
 - [x] Keep include/shared-source dependencies correct for incremental builds.
 
@@ -164,6 +169,11 @@ its gameplay tasks. Keep existing save/generator contracts while adding versions
 - [x] 36-slot inventory, cursor, mouse/drag/split/Shift transfers and hotbar swaps.
 - [x] Persist player 2×2 grid, preview, take/repeat, basic recipe-book autofill.
 - [x] Recipe diagrams and missing ingredient display for the current recipe book.
+- [x] Stable inventory/grid layout while the book replaces the player/armor preview.
+- [x] Searchable, scrollable recipe cards with text input, bounds and empty states.
+- [x] Hover recipe shapes, missing ingredients, output counts and availability feedback.
+- [x] Original player preview, armor silhouettes and table/chest atlas icons.
+- [ ] Functional armor equipment, wearables, offhand and a live 3D player preview.
 - [x] CPU-only: immutable versioned recipe catalog including tables/chests/tools.
 - [x] CPU-only: registry2 item/block metadata and explicit placement/drop mappings.
 - [x] CPU-only: registry2 stacks and transactional2×2/3×3 fill/clear/take/repeat.
@@ -287,6 +297,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [Core API reference](docs/core-interfaces.md)
 - [Legacy prototype/save contracts](docs/prototype-contracts.md)
 - [Confirmed user decisions](docs/game-design-decisions.md)
+- [Inventory player/armor and searchable book](docs/inventory-book-ui.md)
 - [Player controls, flight and autosaving](docs/player-options.md)
 - [Registry2 world pipeline and compatibility](docs/world2.md)
 - [Inventory2/grid transactions](docs/inventory2-grid-crafting.md)

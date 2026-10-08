@@ -122,6 +122,13 @@ SDL_PollEvent:
  mov eax,1
  ret
 .grid_fill:
+ cmp byte [recipe_stage],0
+ jne .grid_click
+ mov byte [recipe_stage],1
+ mov r11d,9
+ jmp .craft_key_same_phase
+.grid_click:
+ mov byte [recipe_stage],0
  call .clear
  mov dword [rdi],0x401
  mov byte [rdi+16],1
@@ -137,17 +144,54 @@ SDL_PollEvent:
  mov r11d,9
  jmp .craft_key
 .inventory:
+ cmp qword [phase],9
+ jne .inventory_key
+ cmp byte [book_scrolled],3
+ jne .inventory_key
+ mov byte [book_scrolled],4
+ mov r11d,9 ; leave search focus before E closes the inventory
+ jmp .craft_key_same_phase
+.inventory_key:
  mov r11d,101
  jmp .craft_key
 .planks:
- mov r11d,324 ; top-origin window pixels -> virtual recipe0
+ mov r11d,172 ; virtual recipe0
  jmp .recipe_click
 .sticks:
- mov r11d,377
+ mov r11d,237
  jmp .recipe_click
 .pickaxe:
- mov r11d,429
+ cmp byte [book_scrolled],0
+ je .book_wheel
+ cmp byte [book_scrolled],1
+ je .book_search_focus
+ cmp byte [book_scrolled],2
+ je .book_search_text
+ mov r11d,172
  jmp .simple_recipe_click
+.book_wheel:
+ mov byte [book_scrolled],1
+ call .clear
+ mov dword [rdi],0x403
+ mov dword [rdi+20],-1
+ mov eax,1
+ ret
+.book_search_focus:
+ mov byte [book_scrolled],2
+ call .clear
+ mov dword [rdi],0x401
+ mov byte [rdi+16],1
+ mov dword [rdi+20],225
+ mov dword [rdi+24],119
+ mov eax,1
+ ret
+.book_search_text:
+ mov byte [book_scrolled],3
+ call .clear
+ mov dword [rdi],0x303
+ mov dword [rdi+12],0x444f4f57 ; WOOD, bounded SDL_TEXTINPUT payload
+ mov eax,1
+ ret
 .recipe_click:
  cmp byte [recipe_stage],0
  je .arrange
@@ -162,7 +206,7 @@ SDL_PollEvent:
  call .clear
  mov dword [rdi],0x401
  mov byte [rdi+16],1
- mov dword [rdi+20],100
+ mov dword [rdi+20],225
  mov [rdi+24],r11d
  mov byte [recipe_stage],1
  mov byte [recipe_shift],0
@@ -182,13 +226,20 @@ SDL_PollEvent:
  call .clear
  mov dword [rdi],0x401
  mov byte [rdi+16],1
- mov dword [rdi+20],100
+ mov dword [rdi+20],225
  mov [rdi+24],r11d
  inc qword [phase]
  mov eax,1
  ret
 .select_tool:
  mov r11d,53
+ jmp .craft_key
+.craft_key_same_phase:
+ call .clear
+ mov dword [rdi],0x300
+ mov [rdi+20],r11d
+ mov eax,1
+ ret
 .craft_key:
  call .clear
  mov dword [rdi],0x300
@@ -282,6 +333,7 @@ section .bss align=16
 ticks: resd 1
 phase: resq 1
 frames: resq 1
+book_scrolled: resb 1
 recipe_stage: resb 1
 recipe_shift: resb 1
 keys: resb 512

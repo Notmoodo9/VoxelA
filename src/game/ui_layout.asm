@@ -1,7 +1,7 @@
 %include "abi.inc"
 section .text
 ; Position/hit APIs share slot geometry. Page0 compact inventory, page1 book.
-; Grid indices36..39; output40. Output and grid are absent from page1.
+; Grid indices36..39; output40. Both views share all41 slot positions.
 global inventory_ui_position
 inventory_ui_position:
  mov r11,A2
@@ -11,8 +11,6 @@ inventory_ui_position:
  cmp r10,1
  ja .bad
  mov rax,A0
- cmp r10,1
- je .book
  cmp rax,36
  jae .grid
  xor edx,edx
@@ -49,12 +47,6 @@ inventory_ui_position:
  mov edx,448
  mov eax,316
  jmp .write
-.book:
- cmp rax,9
- jae .bad
- shl rax,6
- lea rdx,[rax+32]
- mov eax,330
 .write:
  mov [r11],rdx
  mov [r11+8],rax
@@ -86,9 +78,6 @@ FRAME inventory_ui_slot,88
  mov r11,[rsp+40]
  sub r11,[rsp+72]
  mov eax,32
- cmp qword [rsp+48],0
- je .size
- mov eax,56
 .size:
  cmp r10,rax
  jae .next

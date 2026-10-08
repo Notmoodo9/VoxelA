@@ -27,6 +27,13 @@ for y in range(16):
     alpha=255 if handle or head else 0
     rgb=((145,96,45) if tile==12 else (135,139,145)) if head else (150,101,52)
     noise=0
+   if tile==14:
+    # Original crafting-board texture; no additional random draws.
+    rgb=(166,108,59);noise=-38 if x in (0,15) or y in (0,15) else -20 if x%5==0 or y%5==0 else 0
+   if tile==15:
+    # Original chest face with lid seam, dark edge and brass latch.
+    rgb=(151,94,44);noise=-42 if x in (0,15) or y in (0,15,12) else 0
+    if 7<=x<=8 and 7<=y<=10:rgb=(230,194,90);noise=0
    data.extend([max(0,min(255,c+noise)) for c in rgb]+[alpha])
 (root/'assets/textures/blocks.rgba').write_bytes(data)
 def chunk(t,d):return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
@@ -34,6 +41,12 @@ rows=b''.join(b'\0'+data[y*1024:(y+1)*1024] for y in range(15,-1,-1))
 png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',256,16,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows))+chunk(b'IEND',b'')
 (root/'assets/textures/blocks.png').write_bytes(png)
 patterns={
+'.':['00000','00000','00000','00000','00000','00100','00100'],
+'_':['00000','00000','00000','00000','00000','00000','11111'],
+'>':['10000','01000','00100','00010','00100','01000','10000'],
+'^':['00100','01010','10001','00000','00000','00000','00000'],
+'/':['00001','00001','00010','00100','01000','10000','10000'],
+'%':['11001','11010','00100','01000','10110','00110','00000'],
 'A':['01110','10001','10001','11111','10001','10001','10001'],
 'B':['11110','10001','10001','11110','10001','10001','11110'],
 'C':['01111','10000','10000','10000','10000','10000','01111'],
