@@ -115,6 +115,12 @@ SDL_PollEvent:
  mov [rdi+48],rax
  ret
 .initial_save:
+ cmp byte [graphics_stage],3
+ jae .initial_save_ready
+ inc byte [graphics_stage]
+ mov r11d,1073741887 ; actual F6 cycling restores the default High preset
+ jmp .craft_key_same_phase
+.initial_save_ready:
  call .clear
  mov dword [rdi],0x300
  mov dword [rdi+20],1073741886
@@ -333,6 +339,7 @@ section .bss align=16
 ticks: resd 1
 phase: resq 1
 frames: resq 1
+graphics_stage: resb 1
 book_scrolled: resb 1
 recipe_stage: resb 1
 recipe_shift: resb 1

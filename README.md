@@ -14,7 +14,7 @@ validates its changes, commits and pushes to GitHub `main`.
 ## Playable today and current limits
 
 The game has first-person walking, mouse look, gravity/jumping/collision,
-mining/building, an original texture atlas, FPS, nine hotbar slots plus 27 storage
+mining/building, original 64×64 materials, soft sun shadows, dreamlike sky/clouds/fog, FPS, nine hotbar slots plus 27 storage
 slots, Creative flight, adjustable FOV, mouse and sprint settings, coordinates,
 autosaving, standard cursor/drag/split/Shift inventory controls, a player 2×2 crafting
 grid, a searchable/scrollable recipe book, player preview and armor silhouettes,
@@ -82,6 +82,7 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | Double Space / Space / Left Ctrl | Creative flight toggle / fly up / fly down |
 | [ / ] / - / = | FOV decrease/increase / sensitivity decrease/increase |
 | I / T / F3 / , / . | Invert mouse / toggle sprint / coordinates / slower/faster flight |
+| F6 | Cycle Low / Balanced / High graphics (default High) |
 | F4 / middle mouse | Toggle Creative / copy aimed supported block in Creative |
 | E / Tab or book button | Inventory / switch player-and-armor area to recipe book |
 | Click search / type / Backspace / wheel or arrows | Focus recipe search / filter / edit / scroll |
@@ -141,9 +142,10 @@ reset on load or mode changes, and flight is available only in Creative.
   toggle sprint; controller support much later.
 - Worlds/UI: multiple named worlds, seed entry, per-world mode/difficulty,
   five-minute autosave and saving on pause. Minimal HUD, toggleable coordinates.
-- Presentation: richer lighting/atmosphere comparable to the requested shader
-  aesthetic; ambient music and block-specific sound. C418 only with suitable
-  rights; otherwise original or properly licensed music.
+- Presentation: stylized fantasy, vibrant dreamlike lighting, 64×64 materials and
+  rustic warm menus; High default with cheaper presets. See [graphics direction](docs/graphics-direction.md).
+  Ambient music and block-specific sound; C418 only with suitable rights,
+  otherwise original or properly licensed music.
 
 ## Ordered implementation checklist
 
@@ -273,7 +275,20 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 
 ### 8. Presentation, audio, performance and release
 
-- [ ] Better original pixel art/materials, lighting, sky, fog, shadows and atmosphere.
+- [x] Original 64×64 material/icon atlas and warm rustic fantasy inventory trim.
+- [x] Directional sunlight, colored ambient fill and filmic display conversion.
+- [x] Dreamlike gradient sky, sun halo, procedural cloud layer and atmospheric fog.
+- [x] Real 1,024² sun depth map with filtered shadow edges on Balanced/High.
+- [x] Live Low/Balanced/High presets, default High; graphics do not alter saves/items.
+- [ ] Extend sun shadows to dynamic/cascaded coverage for tall and distant terrain.
+- [ ] Moving, richer cloud volumes with wind and sunlight scattering.
+- [ ] Reflective water: fluid geometry first, Fresnel surface/reflection pass second.
+- [ ] Persisted sunsets/night sky/stars synchronized to the world day/night clock.
+- [ ] Ambient occlusion, postprocess bloom and waving foliage.
+- [ ] Torch/held-light illumination, very dark caves/nights and brightness aids.
+- [ ] Animated 3D player preview, slightly rounded character and shirt/pants wardrobe.
+- [ ] Head bob, motion blur, depth of field and screen shake, default on with toggles.
+- [ ] Persist graphics/brightness/effect settings and measure preset frame costs.
 - [ ] Block-specific sounds, positional audio and original/licensed ambient music.
 - [ ] Minimal HUD with health/hunger/status and accessibility options.
 - [ ] Profile frame times, memory, generation/mesh/upload latency on real hardware.
@@ -297,6 +312,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [Core API reference](docs/core-interfaces.md)
 - [Legacy prototype/save contracts](docs/prototype-contracts.md)
 - [Confirmed user decisions](docs/game-design-decisions.md)
+- [Graphics direction and implemented renderer](docs/graphics-direction.md)
 - [Inventory player/armor and searchable book](docs/inventory-book-ui.md)
 - [Player controls, flight and autosaving](docs/player-options.md)
 - [Registry2 world pipeline and compatibility](docs/world2.md)

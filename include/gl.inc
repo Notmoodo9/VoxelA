@@ -35,7 +35,16 @@
 %define glUniform1i 272
 %define glUniform4fv 280
 %define glDisable 288
-%define GL_PROC_COUNT 37
+%define glGenFramebuffers 296
+%define glBindFramebuffer 304
+%define glFramebufferTexture2D 312
+%define glCheckFramebufferStatus 320
+%define glDeleteFramebuffers 328
+%define glDrawBuffer 336
+%define glReadBuffer 344
+%define glViewport 352
+%define glClear 360
+%define GL_PROC_COUNT 46
 %macro GLCALL 1
  call [gl+%1]
 %endmacro

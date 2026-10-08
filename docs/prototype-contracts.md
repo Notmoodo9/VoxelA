@@ -2,7 +2,8 @@
 
 This reference records the legacy prototype contracts. For current completion
 status and implementation order, use the [README](../README.md). Some earlier
-menu/mining descriptions are historical; the current controls take precedence.
+menu/mining/16px atlas descriptions are historical; the current controls and
+[64px graphics direction](graphics-direction.md) take precedence.
 
 ### Block interaction contracts
 

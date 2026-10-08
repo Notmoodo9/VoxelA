@@ -8,6 +8,7 @@ extern SDL_GetModState, SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern play_graphics, play_get_graphics
 extern SDL_StartTextInput, SDL_StopTextInput
 extern play_book_text, play_book_backspace, play_book_scroll, play_book_focused
 extern play_scroll, play_copy_block, play_menu_number, play_menu_clear
@@ -394,6 +395,8 @@ FRAME main,120
  je .grid_clear
  cmp dword [event+20],1073741885
  je .mode
+ cmp dword [event+20],1073741887 ; F6 graphics quality
+ je .graphics
  cmp dword [event+20],1073741886
  je .save
  cmp dword [event+20],1073741890
@@ -435,6 +438,16 @@ FRAME main,120
  mov eax,eax ; SDL ticks are explicitly unsigned32
  mov A0,rax
  call play_space_press
+ jmp .loop
+.graphics:
+ call play_get_graphics
+ inc rax
+ cmp rax,3
+ jb .graphics_set
+ xor eax,eax
+.graphics_set:
+ mov A0,rax
+ call play_graphics
  jmp .loop
 .coordinates:
  mov dword [setting_index],4

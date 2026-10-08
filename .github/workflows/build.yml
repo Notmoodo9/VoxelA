@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y nasm gcc make binutils python3 libsdl2-dev libgl1-mesa-dri xvfb xauth
-      - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window packaging-test save-reference
+      - run: make CONFIG=${{ matrix.config }} all test reference abi-reference window packaging-test material-assets-test save-reference
       - run: ./build/linux/${{ matrix.config }}/voxela
       - run: xvfb-run -a make CONFIG=${{ matrix.config }} graphics-reference play-reference window-reference
         env:
@@ -60,6 +60,7 @@ jobs:
       - run: /ucrt64/bin/python.exe tests/inventory2.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/world2.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/player_options.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/material_assets.py
       - run: /ucrt64/bin/python.exe tests/recipe_book.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/crafting.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/ui_layout.py build/windows/${{ matrix.config }}/save_tests.dll

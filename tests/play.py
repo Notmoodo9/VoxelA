@@ -43,6 +43,45 @@ try:
   return bytes(pixels)
  assert start()==0,'initialization'
  image=capture();assert len(set(image[i:i+3] for i in range(0,len(image),4)))>200,'no texture/fog variation'
+ # Quality changes alter atmosphere without touching inventory, player or saves.
+ graphics=bind(engine,'play_graphics',[C.c_int64]);getgraphics=bind(engine,'play_get_graphics',[])
+ visual_inv=(C.c_ubyte*304)();assert getinventory(visual_inv)==0;owned=bytes(visual_inv)
+ assert getgraphics()==2 and graphics(0)==0;low=capture()
+ assert graphics(2)==0;high=capture()
+ # Sample the sky away from all text: this cannot pass from status changes alone.
+ sky_slice=slice(400*3200+250*4,400*3200+550*4)
+ assert low[sky_slice]!=high[sky_slice], 'quality failed to alter sky'
+ assert graphics(-1)==-1 and graphics(3)==-1 and getgraphics()==2
+ assert getinventory(visual_inv)==0 and bytes(visual_inv)==owned,'visual setting mutated items'
+ assert graphics(2)==0
+ # A real depth map must contain the scene, and each successful draw must
+ # restore the default framebuffer/viewport and active atlas texture unit.
+ assert draw()==0
+ active=gl('glActiveTexture',[C.c_uint]);texinfo=gl('glGetTexLevelParameteriv',[C.c_uint,C.c_int,C.c_uint,C.c_void_p]);texread=gl('glGetTexImage',[C.c_uint,C.c_int,C.c_uint,C.c_uint,C.c_void_p]);state=gl('glGetIntegerv',[C.c_uint,C.c_void_p])
+ value=C.c_int();state(0x84e0,C.byref(value));assert value.value==0x84c0
+ active(0x84c1);texinfo(0xde1,0,0x1000,C.byref(value));assert value.value==1024
+ depths=(C.c_float*(1024*1024))();texread(0xde1,0,0x1902,0x1406,depths)
+ assert min(depths)<0.75 and max(depths)==1.0,'shadow target was not rendered'
+ active(0x84c0);state(0x8ca6,C.byref(value));assert value.value==0,'shadow framebuffer leaked'
+ bounds=(C.c_int*4)();state(0x0ba2,bounds);assert list(bounds)==[0,0,800,600]
+ assert error()==0
+ # A raised wooden gateway must become an occluder in the actual depth pass.
+ base=int(height(42,3,-7))+1
+ for x in range(-4,5):
+  for z in range(-10,-7):
+   assert edit((C.c_int64*3)(x,base+5,z),5)==1
+ for x in (-4,4):
+  for y in range(base,base+5):
+   for z in (-10,-8):assert edit((C.c_int64*3)(x,y,z),5)==1
+ for x in (-6,6):
+  for y in range(base,base+3):assert edit((C.c_int64*3)(x,y,-9),1)==1
+ occluder_image=capture()
+ if len(sys.argv)>6:png(sys.argv[6],occluder_image)
+ active(0x84c1);occluder_depth=(C.c_float*(1024*1024))();texread(0xde1,0,0x1902,0x1406,occluder_depth);active(0x84c0)
+ assert sum(b<a-0.002 for a,b in zip(depths,occluder_depth))>50,'raised geometry did not cast into the sun depth map'
+ assert error()==0
+ # Restore initialization's normal HUD before existing image/idempotency checks.
+ assert stop()==0 and start()==0;image=capture()
  # Storage/standard controls work independently of the hotbar.
  inv36=(C.c_ubyte*304)();assert menu(1)==0
  assert menuaction(176,104,2)==1 # shift dirt into storage

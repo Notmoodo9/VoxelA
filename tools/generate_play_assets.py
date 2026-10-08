@@ -1,44 +1,79 @@
-"""Generate original small voxel textures and a public-domain-style 5x7 font.
-No runtime dependency; raw RGBA and glyph rows are embedded by NASM.
+"""Generate VoxelA's original 64px materials, item icons and 5x7 font.
+Deterministic offline tooling; no downloaded art or runtime Python dependency.
 """
 from pathlib import Path
-import random,struct,zlib
+import math,random,struct,zlib
 root=Path(__file__).resolve().parents[1]
-rng=random.Random(92411)
-colors=[(255,255,255),(135,139,145),(119,76,43),(76,150,49),(213,194,132),(111,76,39),(48,117,43),(57,58,65),(119,76,43),(156,116,64)]
+SIZE=64;TILES=16;WIDTH=SIZE*TILES
+colors=[(255,255,255),(122,131,140),(114,78,51),(91,132,56),
+        (204,184,133),(124,86,49),(59,109,55),(47,51,60),
+        (114,78,51),(155,117,71)]
 data=bytearray()
-for y in range(16):
- for tile in range(16):
-  for x in range(16):
+for pixel_y in range(SIZE):
+ y=pixel_y//2
+ for tile in range(TILES):
+  for pixel_x in range(SIZE):
+   x=pixel_x//2
+   rng=random.Random(92411+tile*100003+pixel_y*101+pixel_x*1009)
    rgb=colors[tile] if tile<len(colors) else (255,255,255)
-   noise=rng.randrange(-17,18) if tile else 0
-   if tile==5:noise=(x%4)*7-15+rng.randrange(-5,6)
-   if tile==9:noise=(int(((x-7.5)**2+(y-7.5)**2)**.5)%3)*15-20
-   if tile==8 and y>11:rgb=colors[3]
-   if tile==1 and (x+y*3)%13==0:noise=-35
-   if tile==4:noise=rng.randrange(-8,9)
-   alpha=0 if tile==6 and rng.randrange(7)==0 else 255
+   noise=rng.randrange(-7,8);alpha=255
+   # Broad coherent mineral/soil variation, fine grain and hand-drawn features.
+   broad=math.sin(x*.43+y*.17)*3+math.cos(y*.52-x*.14)*3
+   noise+=broad
+   if tile==0:noise=0
+   if tile==1:
+    seam=(y+(x//7)*3)%15
+    noise+=-22 if seam==0 else 6 if seam==1 else 0
+    if (x*7+y*11)%47<3:noise-=18
+   if tile in (2,8):
+    if (x*13+y*7)%53<4:rgb=(139,116,87);noise-=10
+    if (x*3+y*5)%31==0:noise-=22
+   if tile==3:
+    noise+=math.sin(x*.77+y*.31)*7
+    if (x*11+y*17)%43<5:rgb=(117,153,63)
+    if (x*7+y*13)%61<3:rgb=(66,107,48)
+   if tile==4:
+    noise=rng.randrange(-5,6)+math.sin(y*.6+x*.2)*3
+    if (x*17+y*11)%67==0:noise-=15
+   if tile==5:
+    noise+=math.sin(x*.8+math.sin(y*.23)*1.7)*13
+    if (x+(y//13))%8==0:noise-=26
+    if (x-19)**2/9+(y-12)**2/30<1:noise-=24
+   if tile==6:
+    leaf=((x//5)+(y//4)*3)%5
+    noise+=leaf*5-8
+    if x%5==0 or y%4==0:noise-=15
+    alpha=0 if (x*13+y*7)%41<3 else 255
+   if tile==7:noise=rng.randrange(-7,8)+((x//4+y//4)%3)*5
+   if tile==8 and y>=24+(x*7%5):
+    rgb=(83,126,52);noise+=10 if y==31 else 0
+   if tile==9:
+    radius=math.sqrt((x-15.5)**2+(y-15.5)**2)
+    noise+=-24 if int(radius*1.1)%5==0 else 5
+    if x in (0,31) or y in (0,31):rgb=(110,74,43)
    if tile==10:
-    rgb=(167,119,68);noise=-24 if y%4==0 else (x%3)*3
-   if tile>=11 and tile<=13:
-    # Original transparent stick and two pickaxe icons; no borrowed assets.
-    handle=(x+y in range(14,18) and 3<=x<=12 and 3<=y<=12)
-    head=(tile>=12 and 3<=x<=13 and 10<=y<=13)
+    rgb=(169,128,77)
+    noise+=-35 if y%8==0 or ((x+(y//8)*11)%32==0) else -8 if y%8==1 else math.sin(x*.4)*3
+   if 11<=tile<=13:
+    # Small original silhouettes, bevel colors and distinct wood/stone heads.
+    handle=27<=x+y<=33 and 5<=x<=25 and 5<=y<=25
+    head=tile>=12 and 5<=x<=27 and 21<=y<=27
     alpha=255 if handle or head else 0
-    rgb=((145,96,45) if tile==12 else (135,139,145)) if head else (150,101,52)
-    noise=0
+    rgb=((166,118,65) if tile==12 else (146,157,166)) if head else (156,110,60)
+    noise=12 if x+y==29 or (head and y==27) else -24 if x+y==33 or (head and y==21) else 0
    if tile==14:
-    # Original crafting-board texture; no additional random draws.
-    rgb=(166,108,59);noise=-38 if x in (0,15) or y in (0,15) else -20 if x%5==0 or y%5==0 else 0
+    rgb=(161,109,61)
+    noise+=-40 if x in (0,1,30,31) or y in (0,1,30,31) else -28 if x%10==0 or y%10==0 else 0
+    if 2<=x<=29 and y==29:noise+=18
    if tile==15:
-    # Original chest face with lid seam, dark edge and brass latch.
-    rgb=(151,94,44);noise=-42 if x in (0,15) or y in (0,15,12) else 0
-    if 7<=x<=8 and 7<=y<=10:rgb=(230,194,90);noise=0
-   data.extend([max(0,min(255,c+noise)) for c in rgb]+[alpha])
+    rgb=(146,100,55)
+    noise+=-45 if x in (0,1,30,31) or y in (0,1,24,30,31) else math.sin(x*.65)*4
+    if 14<=x<=17 and 14<=y<=22:rgb=(218,183,94);noise=16 if x==14 or y==22 else -20 if x==17 else 0
+   data.extend([max(0,min(255,round(c+noise))) for c in rgb]+[alpha])
 (root/'assets/textures/blocks.rgba').write_bytes(data)
 def chunk(t,d):return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
-rows=b''.join(b'\0'+data[y*1024:(y+1)*1024] for y in range(15,-1,-1))
-png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',256,16,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows))+chunk(b'IEND',b'')
+rows=b''.join(b'\0'+data[y*WIDTH*4:(y+1)*WIDTH*4] for y in range(SIZE-1,-1,-1))
+png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',WIDTH,SIZE,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows))+chunk(b'IEND',b'')
 (root/'assets/textures/blocks.png').write_bytes(png)
 patterns={
 '.':['00000','00000','00000','00000','00000','00100','00100'],

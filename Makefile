@@ -128,6 +128,10 @@ graphics-reference: $(BUILD)/libterrain.so
 	python3 tests/graphics.py $<
 endif
 
+.PHONY: material-assets-test
+material-assets-test:
+	python3 tests/material_assets.py
+
 .PHONY: packaging-test
 packaging-test:
 	python3 tests/packaging.py

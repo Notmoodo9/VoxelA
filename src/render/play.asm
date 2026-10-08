@@ -192,7 +192,7 @@ FRAME play_init,120
  lea r11,[locations]
  mov [r11+r10*4],eax
  inc qword [rsp+80]
- cmp qword [rsp+80],5
+ cmp qword [rsp+80],7
  jb .uniforms
  lea A0,[mesh_pair]
  call create_buffer
@@ -216,8 +216,8 @@ FRAME play_init,120
  mov A0,0xde1
  mov A1,0
  mov A2,0x8058
- mov A3,256
- mov A4,16
+ mov A3,1024
+ mov A4,64
  mov A5,0
  mov A6,0x1908
 %ifdef WINDOWS_ABI
@@ -246,6 +246,9 @@ FRAME play_init,120
  mov A1,0x2803
  mov A2,0x812f
  GLCALL glTexParameteri
+ call play_shadow_init
+ test rax,rax
+ jnz .fail
  mov rax,[game_seed]
  mov [config],rax
  lea r10,[entries]
@@ -359,7 +362,7 @@ FRAME play_rebuild,136
  lea r11,[neighbors]
  mov [r11+r10*8],rax
  inc qword [rsp+80]
- cmp qword [rsp+80],6
+ cmp qword [rsp+80],7
  jb .neighbor
  mov r10,[rsp+72]
  mov A0,[r10+24]
@@ -490,6 +493,7 @@ FRAME play_rebuild,136
  dec ecx
  jnz .clean
  mov qword [world+88],0
+ mov dword [shadow_dirty],1
  xor eax,eax
  jmp .done
 .bad: mov rax,-1
@@ -1714,9 +1718,9 @@ FRAME menu_box,40
  movss [rect+8],xmm0
  cvtsi2ss xmm0,A3
  movss [rect+12],xmm0
- mov dword [rect_color],__float32__(0.22)
- mov dword [rect_color+4],__float32__(0.24)
- mov dword [rect_color+8],__float32__(0.25)
+ mov dword [rect_color],__float32__(0.25)
+ mov dword [rect_color+4],__float32__(0.17)
+ mov dword [rect_color+8],__float32__(0.12)
  call hud_rect
  call menu_white
 END_FRAME menu_box,40
@@ -2119,6 +2123,28 @@ FRAME menu_book_tooltip,120
  jb .kind
 .done:
 END_FRAME menu_book_tooltip,120
+; Brass edging and corner inlays are visual only; hit rectangles stay unchanged.
+FRAME menu_fantasy_trim,40
+ mov qword [rsp+32],0
+.part:
+ mov rax,[rsp+32]
+ shl rax,5
+ lea r10,[fantasy_trim]
+ add r10,rax
+ mov rax,[r10]
+ mov [rect],rax
+ mov rax,[r10+8]
+ mov [rect+8],rax
+ mov rax,[r10+16]
+ mov [rect_color],rax
+ mov eax,[r10+24]
+ mov [rect_color+8],eax
+ call hud_rect
+ inc qword [rsp+32]
+ cmp qword [rsp+32],12
+ jb .part
+ call menu_white
+END_FRAME menu_fantasy_trim,40
 FRAME play_menu_hud,72
  mov qword [hud_virtual],1
  lea A0,[inventory]
@@ -2133,19 +2159,19 @@ FRAME play_menu_hud,72
  mov dword [rect+4],__float32__(64.0)
  mov dword [rect+8],__float32__(352.0)
  mov dword [rect+12],__float32__(352.0)
- mov dword [rect_color],__float32__(0.30)
- mov dword [rect_color+4],__float32__(0.30)
- mov dword [rect_color+8],__float32__(0.30)
+ mov dword [rect_color],__float32__(0.34)
+ mov dword [rect_color+4],__float32__(0.23)
+ mov dword [rect_color+8],__float32__(0.14)
  call hud_rect
  mov dword [rect],__float32__(148.0)
  mov dword [rect+4],__float32__(68.0)
  mov dword [rect+8],__float32__(344.0)
  mov dword [rect+12],__float32__(344.0)
- mov dword [rect_color],__float32__(0.80)
- mov dword [rect_color+4],__float32__(0.80)
- mov dword [rect_color+8],__float32__(0.80)
+ mov dword [rect_color],__float32__(0.85)
+ mov dword [rect_color+4],__float32__(0.74)
+ mov dword [rect_color+8],__float32__(0.55)
  call hud_rect
- call menu_white
+ call menu_fantasy_trim
  mov dword [rect_color],__float32__(0.18)
  mov dword [rect_color+4],__float32__(0.18)
  mov dword [rect_color+8],__float32__(0.18)
@@ -2227,9 +2253,9 @@ FRAME play_menu_hud,72
  cvtsi2ss xmm0,eax
  movss [rect+8],xmm0
  movss [rect+12],xmm0
- mov dword [rect_color],__float32__(0.35)
- mov dword [rect_color+4],__float32__(0.35)
- mov dword [rect_color+8],__float32__(0.35)
+ mov dword [rect_color],__float32__(0.39)
+ mov dword [rect_color+4],__float32__(0.26)
+ mov dword [rect_color+8],__float32__(0.15)
  mov rax,[rsp+32]
  cmp rax,[menu_drag_slot]
  je .selected_border
@@ -2267,9 +2293,9 @@ FRAME play_menu_hud,72
  cvtsi2ss xmm0,eax
  movss [rect+8],xmm0
  movss [rect+12],xmm0
- mov dword [rect_color],__float32__(0.55)
- mov dword [rect_color+4],__float32__(0.55)
- mov dword [rect_color+8],__float32__(0.55)
+ mov dword [rect_color],__float32__(0.59)
+ mov dword [rect_color+4],__float32__(0.45)
+ mov dword [rect_color+8],__float32__(0.28)
  call hud_rect
  call menu_white
  mov rax,[rsp+32]
@@ -2787,6 +2813,168 @@ FRAME play_hud,72
  GLCALL glEnable
  GLCALL glGetError
 END_FRAME play_hud,72
+; Owned depth-only shadow target. Check completeness before using it.
+FRAME play_shadow_init,88
+ mov A0,1
+ lea A1,[shadow_texture]
+ GLCALL glGenTextures
+ mov A0,0xde1
+ mov r10d,[shadow_texture]
+ mov A1,r10
+ GLCALL glBindTexture
+ mov A0,0xde1
+ xor A1,A1
+ mov A2,0x81a6 ; DEPTH_COMPONENT24
+ mov A3,1024
+ mov A4,1024
+ mov A5,0
+ mov A6,0x1902 ; DEPTH_COMPONENT
+%ifdef WINDOWS_ABI
+ mov qword [rsp+56],0x1405 ; UNSIGNED_INT
+ mov qword [rsp+64],0
+%else
+ mov qword [rsp+8],0x1405
+ mov qword [rsp+16],0
+%endif
+ GLCALL glTexImage2D
+ mov A0,0xde1
+ mov A1,0x2801
+ mov A2,0x2600
+ GLCALL glTexParameteri
+ mov A0,0xde1
+ mov A1,0x2800
+ mov A2,0x2600
+ GLCALL glTexParameteri
+ mov A0,0xde1
+ mov A1,0x2802
+ mov A2,0x812f
+ GLCALL glTexParameteri
+ mov A0,0xde1
+ mov A1,0x2803
+ mov A2,0x812f
+ GLCALL glTexParameteri
+ mov A0,1
+ lea A1,[shadow_framebuffer]
+ GLCALL glGenFramebuffers
+ mov A0,0x8d40
+ mov r10d,[shadow_framebuffer]
+ mov A1,r10
+ GLCALL glBindFramebuffer
+ mov A0,0x8d40
+ mov A1,0x8d00
+ mov A2,0xde1
+ mov r10d,[shadow_texture]
+ mov A3,r10
+ mov A4,0
+ GLCALL glFramebufferTexture2D
+ xor A0,A0
+ GLCALL glDrawBuffer
+ xor A0,A0
+ GLCALL glReadBuffer
+ mov A0,0x8d40
+ GLCALL glCheckFramebufferStatus
+ mov [rsp+72],eax
+ mov A0,0x8d40
+ xor A1,A1
+ GLCALL glBindFramebuffer
+ cmp dword [rsp+72],0x8cd5
+ jne .bad
+ xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME play_shadow_init,88
+FRAME play_shadows,40
+ cmp qword [graphics_quality],0
+ je .done
+ cmp dword [shadow_dirty],0
+ je .done
+ mov A0,0x84c1
+ GLCALL glActiveTexture
+ mov A0,0xde1
+ xor A1,A1
+ GLCALL glBindTexture
+ mov A0,0x84c0
+ GLCALL glActiveTexture
+ mov A0,0x8d40
+ mov r10d,[shadow_framebuffer]
+ mov A1,r10
+ GLCALL glBindFramebuffer
+ xor A0,A0
+ xor A1,A1
+ mov A2,1024
+ mov A3,1024
+ GLCALL glViewport
+ mov A0,0x100
+ GLCALL glClear
+ mov r10d,[locations+12]
+ mov A0,r10
+ mov A1,3
+ GLCALL glUniform1i
+ mov r10d,[mesh_pair]
+ mov A0,r10
+ GLCALL glBindVertexArray
+ mov A0,4
+ xor A1,A1
+ mov A2,[vertex_count]
+ GLCALL glDrawArrays
+ mov A0,0x8d40
+ xor A1,A1
+ GLCALL glBindFramebuffer
+ xor A0,A0
+ xor A1,A1
+ mov r10d,[screen_width]
+ mov A2,r10
+ mov r10d,[screen_height]
+ mov A3,r10
+ GLCALL glViewport
+ mov dword [shadow_dirty],0
+.done:
+END_FRAME play_shadows,40
+; Session-local visual quality, independent of gameplay/save state.
+global play_graphics, play_get_graphics
+play_graphics:
+ cmp A0,2
+ ja .bad
+ mov [graphics_quality],A0
+ lea r10,[quality_labels]
+ movsxd rax,dword [r10+A0*4]
+ add r10,rax
+ mov [status],r10
+ xor eax,eax
+ ret
+.bad: mov rax,-1
+ ret
+play_get_graphics:
+ mov rax,[graphics_quality]
+ ret
+; Full-screen sky reuses the transient HUD buffer, never touches world meshes.
+FRAME play_sky,40
+ mov A0,0xb71
+ GLCALL glDisable
+ mov A0,0x8892
+ mov r10d,[hud_pair+4]
+ mov A1,r10
+ GLCALL glBindBuffer
+ mov A0,0x8892
+ mov A1,192
+ lea A2,[sky_vertices]
+ mov A3,0x88e8
+ GLCALL glBufferData
+ mov r10d,[locations+12]
+ mov A0,r10
+ mov A1,2
+ GLCALL glUniform1i
+ mov r10d,[hud_pair]
+ mov A0,r10
+ GLCALL glBindVertexArray
+ mov A0,4
+ xor A1,A1
+ mov A2,6
+ GLCALL glDrawArrays
+ mov A0,0xb71
+ GLCALL glEnable
+END_FRAME play_sky,40
 FRAME play_draw,40
  cmp qword [world+88],0
  je .ready
@@ -2843,6 +3031,24 @@ FRAME play_draw,40
  mov A0,r10
  xor A1,A1
  GLCALL glUniform1i
+ mov r10d,[locations+20]
+ mov A0,r10
+ mov A1,[graphics_quality]
+ GLCALL glUniform1i
+ call play_shadows
+ mov A0,0x84c1
+ GLCALL glActiveTexture
+ mov A0,0xde1
+ mov r10d,[shadow_texture]
+ mov A1,r10
+ GLCALL glBindTexture
+ mov r10d,[locations+24]
+ mov A0,r10
+ mov A1,1
+ GLCALL glUniform1i
+ mov A0,0x84c0
+ GLCALL glActiveTexture
+ call play_sky
  mov r10d,[locations+12]
  mov A0,r10
  xor A1,A1
@@ -2868,6 +3074,20 @@ FRAME play_draw,40
 .done:
 END_FRAME play_draw,40
 FRAME play_shutdown,56
+ cmp dword [shadow_framebuffer],0
+ je .shadow_texture
+ mov A0,1
+ lea A1,[shadow_framebuffer]
+ GLCALL glDeleteFramebuffers
+ mov dword [shadow_framebuffer],0
+.shadow_texture:
+ cmp dword [shadow_texture],0
+ je .shadow_done
+ mov A0,1
+ lea A1,[shadow_texture]
+ GLCALL glDeleteTextures
+ mov dword [shadow_texture],0
+.shadow_done:
  mov qword [selection_valid],0
  mov qword [rsp+40],0
 .pair:
@@ -2985,6 +3205,26 @@ FRAME play_load,40
 .done:
 END_FRAME play_load,40
 section .rdata align=8
+fantasy_trim:
+ dd 148.0,68.0,344.0,2.0, 0.67,0.47,0.22,0.0
+ dd 148.0,410.0,344.0,2.0, 0.67,0.47,0.22,0.0
+ dd 148.0,68.0,2.0,344.0, 0.67,0.47,0.22,0.0
+ dd 490.0,68.0,2.0,344.0, 0.67,0.47,0.22,0.0
+ dd 152.0,72.0,8.0,8.0, 0.67,0.47,0.22,0.0
+ dd 152.0,400.0,8.0,8.0, 0.67,0.47,0.22,0.0
+ dd 480.0,72.0,8.0,8.0, 0.67,0.47,0.22,0.0
+ dd 480.0,400.0,8.0,8.0, 0.67,0.47,0.22,0.0
+ dd 154.0,74.0,4.0,4.0, 0.92,0.76,0.43,0.0
+ dd 154.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
+ dd 482.0,74.0,4.0,4.0, 0.92,0.76,0.43,0.0
+ dd 482.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
+sky_vertices:
+ dd -1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
+ dd 1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
+ dd 1.0,1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
+ dd -1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
+ dd 1.0,1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
+ dd -1.0,1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
 
 neighbor_deltas: dq -1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1
 outline_corners: db 0,0,0,1,0,0,0,1,0,1,1,0,0,0,1,1,0,1,0,1,1,1,1,1
@@ -2995,10 +3235,10 @@ align 8
 eye_height: dq 1.62
 align 4
 tile_scale: dd 0.0625
-half_texel_u: dd 0.001953125
-tile_span: dd 0.05859375
-half_texel_v: dd 0.03125
-v_max: dd 0.96875
+half_texel_u: dd 0.00048828125
+tile_span: dd 0.0615234375
+half_texel_v: dd 0.0078125
+v_max: dd 0.9921875
 shades: dd 0.7,0.8,0.45,1.0,0.6,0.85
 menu_width: dd 640.0
 menu_height: dd 480.0
@@ -3049,11 +3289,13 @@ align 4
 material_names: dd empty_name-material_names,stone_name-material_names,dirt_name-material_names,grass_name-material_names,sand_name-material_names,wood_name-material_names,leaves_name-material_names,empty_name-material_names,planks_name-material_names,sticks_name-material_names,wood_pick_name-material_names,stone_pick_name-material_names
 u_eye: db 'eye',0
 u_angles: db 'angles',0
+u_shadow: db 'shadowMap',0
+u_quality: db 'quality',0
 u_lens: db 'lens',0
 u_hud: db 'hud',0
 u_atlas: db 'atlas',0
 align 4
-uniform_names: dd u_eye-uniform_names,u_angles-uniform_names,u_lens-uniform_names,u_hud-uniform_names,u_atlas-uniform_names
+uniform_names: dd u_eye-uniform_names,u_angles-uniform_names,u_lens-uniform_names,u_hud-uniform_names,u_atlas-uniform_names,u_quality-uniform_names,u_shadow-uniform_names
 vertex_source: incbin 'assets/shaders/play.vert'
  db 0
 fragment_source: incbin 'assets/shaders/play.frag'
@@ -3064,6 +3306,12 @@ font: incbin 'assets/textures/font5x7.bin'
 section .data align=8
 game_seed: dq 42
 spawn: dq 0.5,0.0,0.5
+quality_low: db 'GRAPHICS LOW',0
+quality_balanced: db 'GRAPHICS BALANCED',0
+quality_high: db 'GRAPHICS HIGH',0
+quality_labels: dd quality_low-quality_labels,quality_balanced-quality_labels,quality_high-quality_labels
+align 8
+graphics_quality: dq 2
 lens: dd 1.333333333,0.916331174
 digit_text: db '1',0
 number_text: times 4 db 0
@@ -3139,7 +3387,10 @@ vertex_shader: resd 1
 fragment_shader: resd 1
 program: resd 1
 texture: resd 1
-locations: resd 5
+shadow_texture: resd 1
+shadow_framebuffer: resd 1
+shadow_dirty: resd 1
+locations: resd 7
 screen_width: resd 1
 screen_height: resd 1
 mesh_pair: resd 2

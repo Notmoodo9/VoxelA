@@ -1,6 +1,7 @@
 # Player/armor inventory and searchable recipe book
 
-The playable inventory now uses one compact panel for both views. Its lower 27
+The playable inventory now uses one compact panel for both views, with rustic
+parchment/wood colors and brass edging from the [graphics direction](graphics-direction.md). Its lower 27
 storage slots, nine hotbar slots, cursor, 2×2 grid and result keep identical
 positions when the book is opened. Item ownership, save format 4, mouse splitting,
 quick transfers, dragging and result transactions retain their existing rules.

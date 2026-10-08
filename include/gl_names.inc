@@ -35,6 +35,15 @@ gl_name_33: db "glActiveTexture",0
 gl_name_34: db "glUniform1i",0
 gl_name_35: db "glUniform4fv",0
 gl_name_36: db "glDisable",0
+gl_name_37: db "glGenFramebuffers",0
+gl_name_38: db "glBindFramebuffer",0
+gl_name_39: db "glFramebufferTexture2D",0
+gl_name_40: db "glCheckFramebufferStatus",0
+gl_name_41: db "glDeleteFramebuffers",0
+gl_name_42: db "glDrawBuffer",0
+gl_name_43: db "glReadBuffer",0
+gl_name_44: db "glViewport",0
+gl_name_45: db "glClear",0
 align 4
 gl_names:
 dd gl_name_0-gl_names
@@ -74,3 +83,13 @@ dd gl_name_33-gl_names
 dd gl_name_34-gl_names
 dd gl_name_35-gl_names
 dd gl_name_36-gl_names
+
+dd gl_name_37-gl_names
+dd gl_name_38-gl_names
+dd gl_name_39-gl_names
+dd gl_name_40-gl_names
+dd gl_name_41-gl_names
+dd gl_name_42-gl_names
+dd gl_name_43-gl_names
+dd gl_name_44-gl_names
+dd gl_name_45-gl_names
