@@ -618,3 +618,5 @@ total; maximum file size262,608. Legacy formats1/2/3 remain readable. The
 [28 implemented behaviors, exact APIs, save format, tests and limits](docs/inventory-crafting-milestone.md).
 Crafting tables and shaped3×3 tool recipes remain pending; existing tool recipes
 still work through the ingredient-required recipe browser.
+
+The latest [confirmed game design decisions](docs/game-design-decisions.md) specify physical ingredient drops on inventory closure, table-owned grids, difficulty/death rules, Creative flight, world selection/autosaving, presentation, creatures and default16/64-chunk detail/horizon distances. These future requirements do not change the current implemented limits.

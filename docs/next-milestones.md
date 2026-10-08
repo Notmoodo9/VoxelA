@@ -5,6 +5,8 @@ implemented capabilities. The FPS HUD and expanded carried inventory are impleme
 is planned; existing prototype limitations still apply until each milestone is
 validated and marked complete.
 
+The latest detailed answers are recorded in [confirmed game design decisions](game-design-decisions.md). They supersede earlier defaults where noted, particularly inventory-close drops and continued simulation at crafting tables.
+
 ## Requirements confirmed by the user
 
 - 27 storage slots **in addition to** a nine-slot hotbar: 36 carried-item slots.
@@ -39,9 +41,11 @@ validated and marked complete.
       Every operation validates before writing and conserves all item counts.
 - [x] Player 2×2 crafting previews do not consume ingredients. Taking the result consumes
       one recipe batch and creates output only if the cursor/destination fits.
-- [x] Closing a menu, losing focus, saving, loading, or changing crafting-table
-      context must preserve cursor/grid items. If returning items cannot fit,
-      keep a visible, recoverable container state rather than discard items.
+- [x] Current saves and menu transitions preserve cursor/player-grid items.
+- [ ] Replace retained player-grid contents on inventory closure with physical
+      ground drops, as subsequently requested. Implement ownership, pickup and
+      drop persistence before clearing grid records; preserve recoverable state
+      if a transfer cannot complete.
 - [x] Add gameplay format3 for 36 slots plus cursor; retain format1/2 migration. Migrate format1 starter supplies and
       format2 nine-slot inventory into the expanded state without losing items,
       tool wear, mode or selected hotbar slot. Reject malformed data atomically.
@@ -64,6 +68,8 @@ Player 2×2 log/plank/stick crafting and format4 migration are implemented; see
       and block IDs must not be assumed equal once the registries diverge.
 - [ ] Use right-click on a reachable table to open its 3×3 context before normal
       placement. Validate the target's identity, range and continued existence.
+- [ ] Each placed table owns a persisted grid; breaking drops the table plus its
+      contents. Keep simulation running while its menu is open.
 - [ ] Return the correct table item on mining; do not allow duplicate table
       contents after breaking, closing, changing targets or reloading.
 - [ ] Render storage, hotbar, cursor, grid and output clearly, with item counts,

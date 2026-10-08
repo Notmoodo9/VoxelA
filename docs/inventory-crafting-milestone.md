@@ -1,5 +1,10 @@
 # Inventory, crafting and controls milestone
 
+**Later requirement:** the user subsequently requested dropping player-grid
+ingredients onto the ground when the inventory closes. The retained-grid behavior
+described here remains the current implementation until physical drops are ready.
+See [confirmed design decisions](game-design-decisions.md).
+
 This session implements these 28 observable behaviors in the assembly game:
 
 1. A compact centered inventory with three storage rows above a separated hotbar.
