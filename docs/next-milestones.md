@@ -1,7 +1,7 @@
 # Agreed next game milestones
 
 This document records the user's requested direction and distinguishes it from
-implemented capabilities. The FPS HUD is implemented. The remaining work below
+implemented capabilities. The FPS HUD and expanded carried inventory are implemented. The remaining work below
 is planned; existing prototype limitations still apply until each milestone is
 validated and marked complete.
 
@@ -16,35 +16,36 @@ validated and marked complete.
 - A requested render-distance setting spanning 2–256 chunk columns from the
   player, with smooth performance/loading as a priority.
 - A 1,024-block vertical world range, with ordinary terrain well below the top.
-  The placement of that range on the Y axis still needs a decision.
+  The range is Y−256–767.
 - A varied overworld including plains, forests, deserts, mountains, oceans,
   rivers, connected caves, and occasional extreme mountains, deep valleys,
   large caverns and unusual biomes.
 - Survival progression including tools, health, hunger, day/night and creatures.
   Creative should support flight and free building.
 - Preserve old terrain in existing worlds while new chunks use the new
-  generator. A transition-blending decision and legacy-data policy are pending.
+  generator. New-side transition blending is required; legacy import cannot reconstruct unrecorded exploration history.
 
 ## 1. Carried inventory, cursor and grid transactions
 
-- [ ] Expand carried slots from9 to36 while retaining hotbar indices0–8 and
+- [x] Expand carried slots from9 to36 while retaining hotbar indices0–8 and
       assigning storage indices9–35.
-- [ ] Keep item ID/count/durability/reserved validation and resource stack64.
+- [x] Keep item ID/count/durability/reserved validation and resource stack64.
       Tools remain individual records with their own wear.
-- [ ] Introduce explicit cursor-held and crafting-grid records. They must have
+- [x] Introduce persisted cursor-held records.
+- [ ] Introduce persisted crafting-grid records. They must have
       defined ownership, be included in saves, and never silently disappear.
-- [ ] Define left-click pickup/place/swap; right-click pickup half rounded up or
+- [x] Define left-click pickup/place/swap; right-click pickup half rounded up or
       place one; compatible-stack merging; and Shift-click destination order.
       Every operation validates before writing and conserves all item counts.
 - [ ] Crafting previews do not consume ingredients. Taking the result consumes
       one recipe batch and creates output only if the cursor/destination fits.
-- [ ] Closing a menu, losing focus, saving, loading, or changing crafting-table
+- [x] Closing a menu, losing focus, saving, loading, or changing crafting-table
       context must preserve cursor/grid items. If returning items cannot fit,
       keep a visible, recoverable container state rather than discard items.
-- [ ] Add a new gameplay wire version. Migrate format1 starter supplies and
+- [x] Add gameplay format3 for 36 slots plus cursor; retain format1/2 migration. Migrate format1 starter supplies and
       format2 nine-slot inventory into the expanded state without losing items,
       tool wear, mode or selected hotbar slot. Reject malformed data atomically.
-- [ ] Test conservation through random interaction sequences under both ABIs,
+- [x] Test conservation through random interaction sequences under both ABIs,
       especially partial stacks, full bags, split tools, result capacity, and
       closing/reloading with cursor/grid contents.
 
@@ -72,9 +73,8 @@ A radius256 square view includes513×513 =263,169 chunk columns. Expanding every
 edits, textures and driver allocations add more. The current synchronous 5×5
 ring and whole-view remeshing cannot meet the requested maximum smoothly.
 
-- [ ] Decide whether distant chunks may use simplified terrain geometry. The
-      recommended design separates full-detail voxel residency from the far
-      terrain horizon; the user has not confirmed that tradeoff yet.
+- [x] Use simplified distant terrain with an independently adjustable full-detail
+      voxel radius, as confirmed by the user. Rendering this is not implemented yet.
 - [ ] Replace hard-coded ring width, radius and section-count assumptions with
       checked configuration and explicit byte/capacity limits.
 - [ ] Introduce bounded job queues, distance-based loading priority, cancellation
@@ -104,7 +104,8 @@ cannot be reconstructed as a reliable "old chunks" set from those files.
       stable. Track generation even when a chunk has no block edits.
 - [ ] Add region-backed edit storage and metadata rather than rely on the global
       8,192-cell journal for long-term worlds and a huge exploration horizon.
-- [ ] Decide whether new-side border blending should connect preserved terrain.
+- [x] Blend the new side of generator borders toward preserved terrain.
+- [ ] Implement those transitions.
       Never alter old edits while smoothing a new neighbor. Reproducibility must
       include the persisted generator assignments and transition policy.
 - [ ] Define crash-safe region/metadata writes, ownership and recovery before
@@ -115,7 +116,8 @@ cannot be reconstructed as a reliable "old chunks" set from those files.
 
 ## 5. Taller terrain, biomes, caves and ecology
 
-- [ ] Set exact Y bounds for the requested1,024-block range. Update section
+- [x] Set requested bounds to Y−256–767.
+- [ ] Implement those bounds. Update section
       mapping, physics, raycasting, edit validation, saves, spawn safety and
       rendering together; increasing only the height generator is insufficient.
 - [ ] Define temperature/moisture/elevation/continentalness fields, biome

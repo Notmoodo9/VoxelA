@@ -20,7 +20,7 @@ if len(sys.argv)>2 and sys.argv[2]=='--disk-limit':
  import signal
  resource.setrlimit(resource.RLIMIT_FSIZE,(1024,1024))
  signal.signal(signal.SIGXFSZ,signal.SIG_IGN)
- assert store(Path(sys.argv[3]),b'x'*262352)==-1
+ assert store(Path(sys.argv[3]),b'x'*262576)==-1
  sys.exit(0)
 
 checks=0
@@ -31,12 +31,12 @@ def check(value,message='file assertion'):
 
 with tempfile.TemporaryDirectory(prefix='VoxelA save test ') as folder:
  root=Path(folder);path=root/'world edits.vxa'
- for data in [b'',b'first',bytes(range(256))*1024+b'end',b'x'*262352,b'replacement',b'']:
+ for data in [b'',b'first',bytes(range(256))*1024+b'end',b'x'*262576,b'replacement',b'']:
   check(store(path,data)==0,'save commit')
   check(path.read_bytes()==data,'exact file contents')
   check(not Path(str(path)+'.tmp').exists(),'temporary cleaned')
-  output=(C.c_ubyte*(262352+16))();C.memset(output,0xa5,len(output))
-  check(load(encoded(path),output,262352)==len(data),'read length')
+  output=(C.c_ubyte*(262576+16))();C.memset(output,0xa5,len(output))
+  check(load(encoded(path),output,262576)==len(data),'read length')
   check(bytes(output[:len(data)])==data,'read contents')
   check(bytes(output[len(data):])==b'\xa5'*(len(output)-len(data)),'read canary')
  check(store(path,b'prior generation')==0)
@@ -50,15 +50,15 @@ with tempfile.TemporaryDirectory(prefix='VoxelA save test ') as folder:
  check(not Path(str(root)+'.tmp').exists(),'failed rename temp cleanup')
  check(save(b'',buffer(b'x'),1)==-1,'empty path')
  check(save(b'a'*960,buffer(b'x'),1)==-1,'path limit')
- check(save(encoded(path),buffer(b'x'),262353)==-1,'save capacity')
+ check(save(encoded(path),buffer(b'x'),262577)==-1,'save capacity')
  check(path.read_bytes()==b'prior generation','invalid save changed prior file')
- output=(C.c_ubyte*(262352+16))();C.memset(output,0xa5,len(output))
- check(load(encoded(root/'absent'),output,262352)==-1,'missing read')
- check(load(encoded(root),output,262352)==-1,'directory read')
- check(load(encoded(path),output,262353)==-1,'read capacity')
- path.write_bytes(b'x'*262353)
- check(load(encoded(path),output,262352)==-1,'oversize accepted')
- check(bytes(output[262352:])==b'\xa5'*16,'oversize canary')
+ output=(C.c_ubyte*(262576+16))();C.memset(output,0xa5,len(output))
+ check(load(encoded(root/'absent'),output,262576)==-1,'missing read')
+ check(load(encoded(root),output,262576)==-1,'directory read')
+ check(load(encoded(path),output,262577)==-1,'read capacity')
+ path.write_bytes(b'x'*262577)
+ check(load(encoded(path),output,262576)==-1,'oversize accepted')
+ check(bytes(output[262576:])==b'\xa5'*16,'oversize canary')
  path.write_bytes(b'12345')
  check(load(encoded(path),output,4)==-1,'caller capacity not enforced')
  check(load(encoded(path),output,5)==5,'exact capacity')
@@ -79,5 +79,5 @@ with tempfile.TemporaryDirectory(prefix='VoxelA save test ') as folder:
   check(victim.read_bytes()==b'keep' and temporary.is_symlink(),'temporary symlink followed/removed')
   temporary.unlink()
   os.mkfifo(root/'fifo')
-  check(load(encoded(root/'fifo'),output,262352)==0,'FIFO read hung or failed')
+  check(load(encoded(root/'fifo'),output,262576)==0,'FIFO read hung or failed')
 print(f'PASS: {checks} real filesystem save/load/failure assertions ({os.name})')

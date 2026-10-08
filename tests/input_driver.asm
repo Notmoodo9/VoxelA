@@ -48,30 +48,32 @@ SDL_PollEvent:
  cmp r10,1
  je .inventory
  cmp r10,2
- je .planks
+ je .tab
  cmp r10,3
  je .planks
  cmp r10,4
- je .sticks
+ je .planks
  cmp r10,5
- je .pickaxe
+ je .sticks
  cmp r10,6
- je .inventory
+ je .pickaxe
  cmp r10,7
- je .select_tool
+ je .inventory
  cmp r10,8
- je .aim
+ je .select_tool
  cmp r10,9
- je .break
+ je .aim
  cmp r10,10
- je .finish_save
+ je .break
  cmp r10,11
- je .load
+ je .finish_save
  cmp r10,12
- je .pause
+ je .load
  cmp r10,13
- je .resume
+ je .pause
  cmp r10,14
+ je .resume
+ cmp r10,15
  je .quit
  xor eax,eax
  ret
@@ -92,6 +94,9 @@ SDL_PollEvent:
  inc qword [phase]
  mov eax,1
  ret
+.tab:
+ mov r11d,9
+ jmp .craft_key
 .inventory:
  mov r11d,101
  jmp .craft_key

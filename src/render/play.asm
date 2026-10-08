@@ -2,6 +2,18 @@
 %include "gl.inc"
 %include "stream.inc"
 %include "inventory.inc"
+%define inventory_init inventory36_init
+%define inventory_valid inventory36_valid
+%define inventory_add inventory36_add
+%define inventory_craft inventory36_craft
+%define inventory_consume inventory36_consume
+%define inventory_wear inventory36_wear
+%define mine_duration inventory36_mine_duration
+%define inventory_can_craft inventory36_can_craft
+%define inventory_count inventory36_count
+%define inventory_transfer inventory36_transfer
+%define game_encode game36_encode
+%define game_decode game36_decode
 section .text
 extern SDL_GL_GetProcAddress, puts
 extern stream_init, stream_recenter, stream_get, stream_edit, terrain_height
@@ -9,6 +21,7 @@ extern player_init, player_step, player_look, player_resize, player_ray, player_
 extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
+extern inventory36_click, inventory36_quick
 extern inventory_can_craft, inventory_count, inventory_transfer
 extern inventory_init, inventory_add, inventory_craft, inventory_consume, inventory_wear, mine_duration
 FRAME compile_play_shader,72
@@ -260,7 +273,10 @@ FRAME play_init,120
  mov qword [mining_time],0
  mov qword [mining_required],0
  mov qword [menu_open],0
- mov qword [menu_source],-1
+ mov qword [menu_page],0
+ mov qword [menu_pointer_x],320
+ mov qword [menu_pointer_y],300
+ mov qword [menu_drag_slot],-1
  mov qword [hud_virtual],0
  lea A0,[frame_stats]
  call frame_stats_init
@@ -633,8 +649,8 @@ play_get_hit:
  ret
 global play_selected_item
 play_selected_item:
- mov eax,[inventory+72]
- cmp dword [inventory+76],1
+ mov eax,[inventory+288]
+ cmp dword [inventory+292],1
  je .creative
  lea r10,[inventory]
  movzx eax,word [r10+rax*8]
@@ -654,7 +670,7 @@ play_select:
  ja .bad
  mov rax,A0
  dec eax
- mov [inventory+72],eax
+ mov [inventory+288],eax
  mov qword [mining_time],0
  mov qword [mining_required],0
  xor eax,eax
@@ -666,7 +682,7 @@ play_mode:
  cmp A0,1
  ja .bad
  mov rax,A0
- mov [inventory+76],eax
+ mov [inventory+292],eax
  mov qword [mining_time],0
  mov qword [mining_required],0
  lea r10,[survival_text]
@@ -687,12 +703,12 @@ play_get_inventory:
  mov rax,[r11+rcx]
  mov [r10+rcx],rax
  add ecx,8
- cmp ecx,80
+ cmp ecx,304
  jb .copy
  xor eax,eax
  ret
 FRAME play_craft,40
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .rejected
  mov A1,A0
  lea A0,[inventory]
@@ -710,71 +726,150 @@ FRAME play_craft,40
  xor eax,eax
 .done:
 END_FRAME play_craft,40
-global play_menu
-play_menu:
+FRAME play_menu,56
+ mov [rsp+32],A0
  cmp A0,1
  ja .bad
- mov [menu_open],A0
- mov qword [menu_source],-1
- mov qword [mining_time],0
- mov qword [mining_required],0
- cmp A0,0
- je .done
+ test A0,A0
+ jnz .open
+ cmp qword [inventory+296],0
+ je .close
+ lea A0,[inventory]
+ movzx r10d,word [inventory+296]
+ mov A1,r10
+ movzx r10d,word [inventory+298]
+ mov A2,r10
+ movzx r10d,word [inventory+300]
+ mov A3,r10
+ call inventory_add
+ cmp rax,1
+ jne .full
+ mov qword [inventory+296],0
+.close:
+ mov qword [menu_open],0
+ jmp .reset
+.open:
+ mov qword [menu_open],1
  mov qword [captured],0
  lea r10,[menu_tip]
  mov [status],r10
-.done: xor eax,eax
- ret
+.reset:
+ mov qword [menu_drag_slot],-1
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ xor eax,eax
+ jmp .done
+.full:
+ lea r10,[cursor_full_text]
+ mov [status],r10
+ mov rax,-2
+ jmp .done
 .bad: mov rax,-1
- ret
+.done:
+END_FRAME play_menu,56
 global play_menu_open
 play_menu_open:
  mov rax,[menu_open]
  ret
-; Virtual640x480 bottom-origin pointer coordinates; SDL adapter handles DPI.
-FRAME play_menu_click,72
+global play_menu_tab
+play_menu_tab:
+ cmp qword [menu_open],0
+ je .done
+ xor qword [menu_page],1
+.done: xor eax,eax
+ ret
+global play_menu_pointer
+play_menu_pointer:
+ cmp A0,640
+ jae .done
+ cmp A1,480
+ jae .done
+ mov [menu_pointer_x],A0
+ mov [menu_pointer_y],A1
+.done: xor eax,eax
+ ret
+; Shared pointer hit test: hotbar first row, storage in3 further rows.
+menu_slot:
+ cmp A0,32
+ jb .none
+ cmp A0,600
+ jae .none
+ cmp A1,150
+ jb .none
+ cmp A1,386
+ jae .none
+ mov r10,A0
+ sub r10,32
+ mov r11,A1
+ mov rax,385
+ sub rax,r11
+ xor edx,edx
+ mov ecx,60
+ div rcx
+ cmp edx,56
+ jae .none
+ cmp rax,4
+ jae .none
+ cmp qword [menu_page],1
+ jne .row
+ test rax,rax
+ jnz .none
+.row:
+ imul r11,rax,9
+ mov rax,r10
+ xor edx,edx
+ mov ecx,64
+ div rcx
+ cmp edx,56
+ jae .none
+ add rax,r11
+ ret
+.none: mov rax,-1
+ ret
+FRAME play_menu_click,40
+ xor A2,A2
+ call play_menu_action
+END_FRAME play_menu_click,40
+FRAME play_menu_action,72
+ cmp qword [menu_open],0
+ je .ignored
  cmp A0,640
  jae .ignored
  cmp A1,480
  jae .ignored
- cmp qword [menu_open],0
- je .ignored
+ cmp A2,2
+ ja .ignored
  mov [rsp+32],A0
  mov [rsp+40],A1
- ; Inventory row: nine 56px slots spaced64px, y330..386.
- cmp A1,330
- jb .recipes
- cmp A1,386
- jae .ignored
- cmp A0,32
- jb .ignored
- sub A0,32
- mov rax,A0
- xor edx,edx
- mov ecx,64
- div rcx
- cmp rax,9
- jae .ignored
- cmp rdx,56
- jae .ignored
- cmp qword [menu_source],-1
- jne .transfer
- mov [menu_source],rax
- inc rax
- mov A0,rax
- call play_select
- mov eax,1
- jmp .done
-.transfer:
- mov A2,rax
- mov A1,[menu_source]
+ mov [rsp+48],A2
+ mov qword [menu_drag_slot],-1
+ call menu_slot
+ test rax,rax
+ js .recipe
+ mov [rsp+56],rax
+ cmp qword [rsp+48],2
+ je .quick
+ cmp qword [inventory+296],0
+ jne .click
+ cmp qword [rsp+48],0
+ jne .click
+ mov [menu_drag_slot],rax
+.click:
  lea A0,[inventory]
- call inventory_transfer
- mov qword [menu_source],-1
- mov qword [mining_time],0
- mov qword [mining_required],0
+ mov A1,[rsp+56]
+ mov A2,[rsp+48]
+ call inventory36_click
  jmp .done
-.recipes:
+.quick:
+ lea A0,[inventory]
+ mov A1,[rsp+56]
+ call inventory36_quick
+ jmp .done
+.recipe:
+ cmp qword [menu_page],1
+ jne .ignored
+ cmp qword [rsp+48],0
+ jne .ignored
  mov rax,[rsp+32]
  cmp rax,32
  jb .ignored
@@ -800,7 +895,28 @@ FRAME play_menu_click,72
  jmp .done
 .ignored: xor eax,eax
 .done:
-END_FRAME play_menu_click,72
+END_FRAME play_menu_action,72
+FRAME play_menu_release,56
+ cmp qword [menu_open],0
+ je .ignored
+ cmp qword [menu_drag_slot],-1
+ je .ignored
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ call menu_slot
+ cmp rax,[menu_drag_slot]
+ je .ignored
+ test rax,rax
+ js .ignored
+ mov A0,[rsp+32]
+ mov A1,[rsp+40]
+ xor A2,A2
+ call play_menu_action
+ jmp .done
+.ignored: xor eax,eax
+.done:
+ mov qword [menu_drag_slot],-1
+END_FRAME play_menu_release,56
 FRAME play_get_block,40
  mov A1,A0
  lea A0,[world]
@@ -844,7 +960,7 @@ FRAME play_apply,56
  jnz .place
  cmp qword [hit+64],7
  je .rejected
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .break_creative
  lea A0,[inventory]
  mov A1,[hit+64]
@@ -859,7 +975,7 @@ FRAME play_apply,56
  mov rax,[r10+rcx]
  mov [r11+rcx],rax
  add ecx,8
- cmp ecx,80
+ cmp ecx,304
  jb .copy
  lea A0,[pending_inventory]
  call inventory_wear
@@ -886,7 +1002,7 @@ FRAME play_apply,56
  mov r8,[r10+rcx]
  mov [r11+rcx],r8
  add ecx,8
- cmp ecx,80
+ cmp ecx,304
  jb .commit
  lea r10,[collected_text]
  mov [status],r10
@@ -914,7 +1030,7 @@ FRAME play_apply,56
  call play_edit_cell
  cmp rax,1
  jne .done
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .done
  lea A0,[inventory]
  call inventory_consume
@@ -1178,19 +1294,30 @@ FRAME play_menu_hud,72
  mov qword [rsp+32],0
 .slot:
  mov rax,[rsp+32]
+ xor edx,edx
+ mov ecx,9
+ div rcx
+ mov [rsp+56],rax
+ mov rax,rdx
  shl rax,6
  add rax,32
  mov [rsp+40],rax
  cvtsi2ss xmm0,rax
  movss [rect],xmm0
- mov dword [rect+4],0x43a50000 ;330
+ mov rax,[rsp+56]
+ imul rax,60
+ mov r10,330
+ sub r10,rax
+ mov [rsp+64],r10
+ cvtsi2ss xmm0,r10
+ movss [rect+4],xmm0
  mov dword [rect+8],0x42600000 ;56
  mov dword [rect+12],0x42600000
  mov dword [rect_color],0x3e400000
  mov dword [rect_color+4],0x3e400000
  mov dword [rect_color+8],0x3e800000
  mov rax,[rsp+32]
- cmp rax,[menu_source]
+ cmp rax,[menu_drag_slot]
  jne .border
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f600000
@@ -1218,7 +1345,10 @@ FRAME play_menu_hud,72
  add eax,8
  cvtsi2ss xmm0,eax
  movss [rect],xmm0
- mov dword [rect+4],0x43ae0000 ;348
+ mov rax,[rsp+64]
+ add eax,18
+ cvtsi2ss xmm0,eax
+ movss [rect+4],xmm0
  mov dword [rect+8],0x42100000 ;36
  mov dword [rect+12],0x42100000
  call hud_rect
@@ -1236,22 +1366,36 @@ FRAME play_menu_hud,72
  lea A0,[number_text]
  mov A1,[rsp+40]
  add A1,8
- mov A2,332
+ mov A2,[rsp+64]
+ add A2,2
  call hud_text
 .empty:
  inc qword [rsp+32]
+ cmp qword [menu_page],1
+ jne .storage_count
  cmp qword [rsp+32],9
  jb .slot
+ jmp .slots_done
+.storage_count:
+ cmp qword [rsp+32],36
+ jb .slot
+.slots_done:
  ; Selected slot's item name, independent of the Creative build palette.
- mov eax,[inventory+72]
+ mov eax,[inventory+288]
  lea r10,[inventory]
  movzx eax,word [r10+rax*8]
  lea r10,[material_names]
  movsxd rax,dword [r10+rax*4]
  lea A0,[r10+rax]
  mov A1,32
+ mov A2,120
+ cmp qword [menu_page],0
+ je .item_label
  mov A2,310
+.item_label:
  call hud_text
+ cmp qword [menu_page],0
+ je .after_recipes
  lea A0,[menu_recipes]
  mov A1,32
  mov A2,270
@@ -1277,7 +1421,7 @@ FRAME play_menu_hud,72
  mov dword [rect_color+8],0x3e000000
  cmp qword [rsp+48],1
  jne .disabled
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .disabled
  mov dword [rect_color+4],0x3e800000
 .disabled:
@@ -1296,7 +1440,7 @@ FRAME play_menu_hud,72
  jne .availability
  lea A0,[menu_ready]
 .availability:
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  jne .badge
  lea A0,[menu_creative]
 .badge:
@@ -1307,6 +1451,7 @@ FRAME play_menu_hud,72
  inc qword [rsp+32]
  cmp qword [rsp+32],4
  jb .recipe
+.after_recipes:
  mov qword [rsp+32],0
 .owned:
  mov rax,[rsp+32]
@@ -1338,6 +1483,37 @@ FRAME play_menu_hud,72
  mov A1,32
  mov A2,30
  call hud_text
+ cmp qword [inventory+296],0
+ je .no_cursor
+ call menu_white
+ movzx eax,word [inventory+296]
+ lea r10,[item_tiles]
+ movzx eax,byte [r10+rax]
+ cvtsi2ss xmm0,eax
+ mulss xmm0,[tile_scale]
+ addss xmm0,[half_texel_u]
+ movss [rect_uv],xmm0
+ addss xmm0,[tile_span]
+ movss [rect_uv+8],xmm0
+ movss xmm0,[half_texel_v]
+ movss [rect_uv+4],xmm0
+ movss xmm0,[v_max]
+ movss [rect_uv+12],xmm0
+ cvtsi2ss xmm0,qword [menu_pointer_x]
+ movss [rect],xmm0
+ cvtsi2ss xmm0,qword [menu_pointer_y]
+ movss [rect+4],xmm0
+ mov dword [rect+8],0x42000000
+ mov dword [rect+12],0x42000000
+ call hud_rect
+ call menu_white
+ movzx eax,word [inventory+298]
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[menu_pointer_x]
+ mov A2,[menu_pointer_y]
+ call hud_text
+.no_cursor:
  mov qword [hud_virtual],0
  xor eax,eax
 END_FRAME play_menu_hud,72
@@ -1434,7 +1610,7 @@ FRAME play_hud,72
  mov dword [rect+12],0x41400000
  call hud_rect
  lea A0,[survival_text]
- cmp dword [inventory+76],0
+ cmp dword [inventory+292],0
  je .mode_label
  lea A0,[creative_text]
 .mode_label:
@@ -1490,7 +1666,7 @@ FRAME play_hud,72
  mov dword [rect_color],0x3e000000
  mov dword [rect_color+4],0x3e000000
  mov dword [rect_color+8],0x3e000000
- mov eax,[inventory+72]
+ mov eax,[inventory+288]
  inc eax
  cmp rax,[rsp+32]
  jne .border
@@ -1510,7 +1686,7 @@ FRAME play_hud,72
  mov dword [rect_color+8],0x3f800000
  mov rax,[rsp+32]
  dec rax
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .creative_icon
  lea r10,[inventory]
  movzx eax,word [r10+rax*8]
@@ -1549,7 +1725,7 @@ FRAME play_hud,72
  mov A2,52
  call hud_text
  ; Count labels below icons; tool counts show remaining durability instead.
- cmp dword [inventory+76],1
+ cmp dword [inventory+292],1
  je .next_slot
  mov rax,[rsp+32]
  dec rax
@@ -1770,7 +1946,7 @@ FRAME play_save,56
 END_FRAME play_save,56
 FRAME play_load,40
  lea A1,[save_buffer]
- mov A2,262352
+ mov A2,262576
  call file_load
  test rax,rax
  js .fail
@@ -1781,8 +1957,13 @@ FRAME play_load,40
  call game_decode
  test rax,rax
  jnz .fail
+ cmp qword [inventory+296],0
+ je .no_cursor
+ mov A0,1
+ call play_menu
+.no_cursor:
  mov qword [selection_valid],0
- mov qword [menu_source],-1
+ mov qword [menu_drag_slot],-1
  mov qword [mining_time],0
  mov qword [mining_required],0
  lea r10,[loaded_text]
@@ -1826,11 +2007,12 @@ saved_text: db 'SAVED',0
 loaded_text: db 'LOADED',0
 save_failed_text: db 'SAVE FAILED - CHECK CONSOLE',0
 load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
+cursor_full_text: db 'PLACE HELD ITEMS BEFORE CLOSING',0
 fps_text: db 'FPS',0
-menu_tip: db 'CLICK A GREEN RECIPE TO CRAFT',0
+menu_tip: db 'TAB RECIPES - E OR ESC CLOSE',0
 menu_title: db 'INVENTORY AND CRAFTING',0
-menu_help: db 'E OR ESC CLOSE - CLICK TWO SLOTS TO MOVE',0
-menu_items: db 'ITEMS - NUMBERS ARE COUNTS OR TOOL WEAR',0
+menu_help: db 'LEFT MOVE RIGHT SPLIT SHIFT QUICK TAB RECIPES',0
+menu_items: db '9 HOTBAR SLOTS AND 27 STORAGE SLOTS',0
 menu_recipes: db 'RECIPES - CLICK TO CRAFT ONE BATCH',0
 menu_ready: db 'CRAFT',0
 menu_locked: db 'NOT READY',0
@@ -1889,7 +2071,7 @@ lens: dd 1.333333333,1.428148007
 digit_text: db '1',0
 number_text: times 4 db 0
 align 8
-save_target: dq 0,262352
+save_target: dq 0,262576
 load_bundle: dq 0,0
 section .bss align=16
 gl: resq GL_PROC_COUNT
@@ -1924,11 +2106,14 @@ rect_color: resd 3
 rect_uv: resd 4
 frame_stats: resq 3
 menu_open: resq 1
-menu_source: resq 1
+menu_drag_slot: resq 1
+menu_page: resq 1
+menu_pointer_x: resq 1
+menu_pointer_y: resq 1
 hud_virtual: resq 1
 captured: resq 1
-inventory: resb 80
-pending_inventory: resb 80
+inventory: resb 304
+pending_inventory: resb 304
 mining_time: resq 1
 mining_required: resq 1
 mining_target: resq 4
@@ -1937,6 +2122,6 @@ hit: resb 72
 ray: resb 56
 eye: resd 3
 status: resq 1
-save_buffer: resb 262352
+save_buffer: resb 262576
 diagnostic: resb 2048
 ELF_STACK

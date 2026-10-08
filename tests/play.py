@@ -18,6 +18,7 @@ start=bind(engine,'play_init',[]);draw=bind(engine,'play_draw',[]);stop=bind(eng
 look=bind(engine,'play_look',[C.c_int64,C.c_int64]);step=bind(engine,'play_step',[C.c_uint64,C.c_uint64]);resize=bind(engine,'play_resize',[C.c_uint64,C.c_uint64])
 getplayer=bind(engine,'play_get_player',[C.c_void_p]);pick=bind(engine,'play_pick',[]);hit=bind(engine,'play_get_hit',[C.c_void_p]);select=bind(engine,'play_select',[C.c_uint64]);apply=bind(engine,'play_apply',[C.c_uint64]);edit=bind(engine,'play_edit_cell',[C.c_void_p,C.c_uint64]);get=bind(engine,'play_get_block',[C.c_void_p])
 frametime=bind(engine,'play_frame_time',[C.c_uint64])
+menutab=bind(engine,'play_menu_tab',[]);menuaction=bind(engine,'play_menu_action',[C.c_uint64,C.c_uint64,C.c_uint64]);pointer=bind(engine,'play_menu_pointer',[C.c_uint64,C.c_uint64]);menurelease=bind(engine,'play_menu_release',[C.c_uint64,C.c_uint64])
 menu=bind(engine,'play_menu',[C.c_uint64]);menuopen=bind(engine,'play_menu_open',[]);menuclick=bind(engine,'play_menu_click',[C.c_uint64,C.c_uint64])
 mine=bind(engine,'play_mine',[C.c_uint64,C.c_uint64]);mode=bind(engine,'play_mode',[C.c_uint64]);craft=bind(engine,'play_craft',[C.c_uint64]);getinventory=bind(engine,'play_get_inventory',[C.c_void_p])
 save=bind(engine,'play_save',[C.c_char_p]);load=bind(engine,'play_load',[C.c_char_p]);capturemode=bind(engine,'play_set_capture',[C.c_uint64]);setseed=bind(engine,'play_seed',[C.c_uint64]);height=bind(engine,'terrain_height',[C.c_uint64,C.c_int64,C.c_int64])
@@ -41,8 +42,22 @@ try:
   return bytes(pixels)
  assert start()==0,'initialization'
  image=capture();assert len(set(image[i:i+3] for i in range(0,len(image),4)))>200,'no texture/fog variation'
+ # Storage/standard controls work independently of the hotbar.
+ inv36=(C.c_ubyte*304)();assert menu(1)==0
+ assert menuaction(40,340,2)==1 # shift dirt into storage
+ assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,72)==(2,32)
+ assert menuaction(40,280,1)==1 # split storage stack into cursor
+ assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,296)==(2,16)
+ assert menuaction(104,280,1)==1 # place one in next storage slot
+ assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,80)==(2,1)
+ assert menuaction(168,280,0)==1 # place remaining15
+ assert menuaction(168,280,2)==1 # shift remaining15 back to hotbar
+ assert menuaction(104,340,0)==1 # pick up starter wood
+ assert pointer(552,160)==0 and menurelease(552,160)==1 # drag into last storage slot
+ assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,280)==(5,8)
+ assert menu(0)==0 and stop()==0 and start()==0 and capture()==image
  # Real scaled inventory panel, read-only availability and clickable recipes.
- menu_inventory=(C.c_ubyte*80)()
+ menu_inventory=(C.c_ubyte*304)()
  assert getinventory(menu_inventory)==0;fresh_inventory=bytes(menu_inventory)
  assert menu(2)==-1 and menuopen()==0 and menu(1)==0 and menuopen()==1
  panel=capture();assert panel!=image,'inventory panel absent'
@@ -50,6 +65,7 @@ try:
  assert getplayer(pose)==0;menu_pose=bytes(pose)
  assert step(1,100)==0 and look(100,100)==0 and getplayer(pose)==0 and bytes(pose)==menu_pose,'menu did not pause player'
  assert apply(0)==0 and mine(1,100)==0
+ assert menutab()==0
  for x,y in [(640,340),(31,340),(90,340),(40,201),(10,10)]:assert menuclick(x,y)==0,'menu gap hit'
  assert menuclick(40,132)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==fresh_inventory,'locked recipe consumed resources'
  # Move dirt to the last slot, craft using items spread across slots.
@@ -72,7 +88,8 @@ try:
   # Successful loading clears the source highlight; this is a fresh selection.
   assert menuclick(296,340)==1
  assert menu(0)==0 and menuopen()==0
- assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,32)==(10,1,60,0)
+ assert getinventory(menu_inventory)==0
+ assert sum(struct.unpack_from('<H',menu_inventory,i*8)[0]==10 for i in range(36))==1 and bytes(menu_inventory[296:])==bytes(8)
  assert stop()==0 and start()==0 and capture()==image,'menu state did not reset'
  for _ in range(60):assert frametime(17)==0
  assert capture()!=image,'FPS display did not update'
@@ -93,7 +110,7 @@ try:
  assert look(0,200)==0 and pick()==1,'five-block aim ray'
  h=(C.c_int64*9)();assert hit(h)==1
  cell=(C.c_int64*3)(*h[:3]);original=h[8]
- inv=(C.c_ubyte*80)();assert getinventory(inv)==0
+ inv=(C.c_ubyte*304)();assert getinventory(inv)==0
  assert struct.unpack_from('<HH',inv,0)==(2,32)
  assert original in [2,3,4,6],original
  # Hold duration and release reset are tested through the real renderer API.
@@ -115,9 +132,9 @@ try:
  assert edit(body,1)==0,'player suffocating placement accepted'
  assert select(0)==-1 and select(10)==-1 and select(9)==0
  assert mode(2)==-1 and mode(1)==0
- assert getinventory(inv)==0;creative_slots=bytes(inv)[:72]
+ assert getinventory(inv)==0;creative_slots=bytes(inv)[:288]
  assert pick()==1 and apply(0)==1 and getinventory(inv)==0
- assert bytes(inv)[:72]==creative_slots,'creative changed inventory'
+ assert bytes(inv)[:288]==creative_slots,'creative changed inventory'
  assert edit(cell,original)==1 and mode(0)==0 and select(1)==0
  assert pick()==1 and hit(h)==1
  placed=(C.c_int64*3)(*h[5:8])
@@ -163,17 +180,25 @@ try:
   baseline=bytearray(path.read_bytes())
   def install_inventory(slots,selected=0):
    data=bytearray(baseline)
-   data[-80:]=b''.join(struct.pack('<HHHH',*slot) for slot in slots)+struct.pack('<II',selected,0)
+   data[-304:]=b''.join(struct.pack('<HHHH',*slot) for slot in slots)+bytes((36-len(slots))*8)+struct.pack('<II',selected,0)+bytes(8)
    checksum=0xcbf29ce484222325
    for i,b in enumerate(data):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
    struct.pack_into('<Q',data,40,checksum);path.write_bytes(data)
    assert load(encoded)==0 and pick()==1
-  full=[[10,1,5,0]]+[[8,64,0,0] for _ in range(8)]
+  full=[[10,1,5,0]]+[[8,64,0,0] for _ in range(35)]
   install_inventory(full)
   assert getinventory(inv)==0;before_inventory=bytes(inv)
   for _ in range(4):assert mine(1,100)==0
   assert get(cell)==original and getinventory(inv)==0 and bytes(inv)==before_inventory,'full bag consumed terrain or tool'
-  install_inventory([[10,1,1,0]]+[[8,64,0,0] for _ in range(8)])
+  held_full=bytearray(path.read_bytes());held_full[-8:]=struct.pack('<HHHH',5,1,0,0)
+  checksum=0xcbf29ce484222325
+  for i,b in enumerate(held_full):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
+  struct.pack_into('<Q',held_full,40,checksum);path.write_bytes(held_full)
+  assert load(encoded)==0 and menuopen()==1 and getinventory(inv)==0
+  held_inventory=bytes(inv)
+  assert menu(0)==-2 and menuopen()==1 and getinventory(inv)==0 and bytes(inv)==held_inventory,'full cursor closing lost items'
+  install_inventory([[10,1,1,0]]+[[8,64,0,0] for _ in range(35)])
+  assert menu(0)==0 and capturemode(1)==0
   assert edit(cell,1)==1 and pick()==1
   for _ in range(7):assert mine(1,100)==0
   assert mine(1,100)==1 and get(cell)==0 and getinventory(inv)==0
@@ -181,9 +206,9 @@ try:
   assert edit(cell,original)==1
   # Inventory staging must also roll back when the world journal is full.
   maximum=bytearray(baseline[:128])
-  struct.pack_into('<I',maximum,20,8192);struct.pack_into('<Q',maximum,32,8192*32+80)
+  struct.pack_into('<I',maximum,20,8192);struct.pack_into('<Q',maximum,32,8192*32+304)
   for i in range(8192):maximum.extend(struct.pack('<qqqQ',i%128,100,i//128,5))
-  maximum.extend(struct.pack('<HHHH',2,32,0,0)+struct.pack('<HHHH',5,8,0,0)+bytes(56)+struct.pack('<II',0,0))
+  maximum.extend(struct.pack('<HHHH',2,32,0,0)+struct.pack('<HHHH',5,8,0,0)+bytes(272)+struct.pack('<II',0,0)+bytes(8))
   checksum=0xcbf29ce484222325
   for i,b in enumerate(maximum):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
   struct.pack_into('<Q',maximum,40,checksum);path.write_bytes(maximum)
@@ -193,7 +218,7 @@ try:
   assert mine(1,50)==-2 and get(cell)==original and getinventory(inv)==0
   assert bytes(inv)==before_inventory,'failed terrain edit consumed inventory'
   # Inventory reset on a successful legacy load, without requiring a new world.
-  legacy=bytearray(baseline[:-80]);struct.pack_into('<I',legacy,8,1)
+  legacy=bytearray(baseline[:-304]);struct.pack_into('<I',legacy,8,1)
   struct.pack_into('<Q',legacy,32,len(legacy)-128);struct.pack_into('<Q',legacy,96,0)
   checksum=0xcbf29ce484222325
   for i,b in enumerate(legacy):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
