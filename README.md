@@ -2,12 +2,12 @@
 
 VoxelA is a planned voxel sandbox game written in assembly. The goal is a massive, explorable world with blocks, entities, chunk rendering, reproducible procedural terrain, biomes, and both creative and survival modes.
 
-This repository contains an assembly engine foundation and the remaining game plan. The default executable is a headless terrain-generation demonstration. The optional window executable now renders seeded voxel terrain with a controllable spectator camera and block editing; it is not yet a playable game. Implemented capabilities and build commands are listed below; unchecked roadmap items remain outstanding.
+This repository now contains a playable first-person walking sandbox prototype and the remaining game plan. The default headless executable demonstrates terrain generation; `make window` builds the player game with streamed terrain, textures, collision, jumping, block interaction, and manual saves. Inventory, health, hunger, creatures, crafting, and complete creative/survival modes remain unfinished. The old orthographic demo is retained separately for regression testing.
 
 
 ## Current implementation and build instructions
 
-CPU engine implementation is NASM assembly; GPU shaders use GLSL. Python is used only for independent tests and framebuffer capture. The headless core has no SDL/OpenGL dependency. An optional graphics bootstrap uses SDL2 and OpenGL 3.3.
+CPU engine implementation is NASM assembly; GPU shaders use GLSL. Python is used only for tests, build/packaging tooling, and offline original asset generation. All runtime CPU engine/game code is NASM assembly. The headless core has no SDL/OpenGL dependency. An optional graphics bootstrap uses SDL2 and OpenGL 3.3.
 
 Implemented:
 
@@ -18,8 +18,12 @@ Implemented:
 - Global fixed-point quintic 2D value noise, climate-based biome classification, and reproducible section generation.
 - A bounded section cache with validated insertion, loaded/unloaded/out-of-bounds lookup, data revisions, and neighbor mesh invalidation on arrival and boundary edits.
 - Neighbor-aware exposed-face extraction with opaque/cutout visibility rules, count queries, and capacity-checked output. CPU face records expand into counterclockwise colored triangles for GPU upload.
-- An optional seeded terrain viewer with GLSL shaders, VAO/VBO upload, depth testing, an orthographic spectator camera, and a 2×2 surface-section grid. It currently uses block colors instead of textures.
+- A retained legacy seeded terrain viewer with GLSL shaders, VAO/VBO upload, depth testing, an orthographic spectator camera, and a 2×2 surface-section grid. It currently uses block colors instead of textures.
 - Assembly voxel DDA raycasting, screen-to-world orthographic rays, loaded-box clipping, a yellow block outline, and mouse editing with cache revisions and mesh rebuilds.
+- A 5×5-column ring cache (400 vertical sections) with deterministic regeneration, bounded residency, and an 8,192-entry world-coordinate edit journal that survives chunk eviction.
+- A first-person walking player with relative mouse look, perspective projection, gravity, jumping, wall sliding, ceiling/floor collisions, sprinting, and collision-safe placement.
+- An original nearest-filtered texture atlas, cutout leaves, crosshair, numbered material hotbar, selected-material label, pause prompt, and bitmap controls/status HUD.
+- A checksummed player/world save format containing seed, player pose, and all journal entries, plus decimal/hex `--seed` selection.
 - A portable bounded-demo block-override snapshot codec with checksum/version validation and transactional loading, plus manual F5/F9 file persistence through assembly Linux/Windows adapters.
 - Shared assembly camera state with elapsed-time movement, normalized diagonal speed, yaw wrapping, bounded zoom, reset, and drawable aspect updates.
 - An optional SDL2 window and OpenGL 3.3 core context with resize-aware drawable dimensions, Escape/close handling, staged error cleanup, and a three-frame pixel-readback smoke check.
@@ -51,9 +55,9 @@ make TARGET=windows TOOLCHAIN_PREFIX=x86_64-w64-mingw32- build/windows/debug/eng
 
 Cross-linked executables require a Windows runtime to execute. `NASM=/path/to/nasm` and `LINKER=/path/to/gcc` can override tool locations. Outputs are separated by platform and debug/release configuration. Use `make clean` after changing toolchain or assembler options. `make objects TARGET=windows` checks COFF assembly without needing a linker.
 
-`make test` runs 55 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks 147,427 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
+`make test` runs 55 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks 150,278 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
 
-### Optional graphics bootstrap
+### Play the first-person prototype
 
 Install SDL2 development libraries, then build and run:
 
@@ -61,11 +65,24 @@ Install SDL2 development libraries, then build and run:
 make window
 ./build/linux/debug/voxela-window
 ./build/linux/debug/voxela-window --smoke
+./build/linux/debug/voxela-window --seed 12345
 ```
 
 On Windows, install `mingw-w64-ucrt-x86_64-SDL2` in MSYS2 UCRT64, use `make TARGET=windows window`, and put the matching `SDL2.dll` beside the executable for standalone execution. Within UCRT64 its library directory is normally already on PATH. The optional target shares assembly source across platforms, but native Windows graphics execution remains unverified.
 
-The window displays four adjacent generated surface sections, covering X/Z 0–31 and Y 64–79 for seed 42, using a controllable orthographic spectator camera. Neighbor faces are culled across the loaded section boundaries. This bounded terrain slab is a renderer demonstration, not a streamed world. WASD pans relative to camera yaw; Space/Left Ctrl changes height; Q/E turns; +/- changes zoom; Left Shift increases speed; R resets the view; Escape exits. Mouse hover highlights a block; left click removes it and right click places the selected block in the adjacent empty cell. Keys 1–6 select stone, dirt, grass, sand, log, and leaves. Placement requires a loaded empty cell; bedrock cannot be removed. F5 saves edits to `voxela-demo.vxa` in the current working directory; F9 loads that file into the regenerated demo. Saving and loading are manual: closing does not save, and startup does not automatically load. Save/load results appear in the console. Edits do not change generation. Movement and editing pause on focus loss. Resizing updates drawable aspect, and reset preserves that aspect. This is spectator movement without collision, not a creative/survival player controller. Texture mapping, mouse look, perspective projection, and gameplay are unfinished. Escape or closing the window exits normally. `--smoke` verifies three frames by reading a terrain pixel, rejecting the background color, and checking OpenGL errors; closing before validation or exceeding a five-second smoke deadline is a failure. On a Linux machine supporting SDL's offscreen driver, use `SDL_VIDEODRIVER=offscreen` for smoke validation. A driver without OpenGL 3.3 produces an initialization failure instead of a false success. Software-rendered smoke checks validate the pipeline, not hardware performance.
+The window starts a first-person player on generated ground. WASD walks, mouse motion looks, Space jumps, and Left Shift sprints. Left click removes the aimed block; right click places the selected material in the adjacent empty cell. Keys 1–6 select stone, dirt, grass, sand, wood, and leaves. The crosshair ray reaches five blocks. Placement cannot overlap the player, and bedrock is immutable. Materials are currently unlimited; this is survival-style movement, not complete survival inventory/progression.
+
+Escape releases the mouse and pauses movement; clicking the window resumes and captures it. Focus loss also releases/pauses. F10 or window close exits. Relative mouse support and OpenGL 3.3 are required for interactive play; SDL's offscreen driver supports rendering tests but has no real mouse capture. Window resizing updates the perspective aspect and HUD pixel coordinates. The camera uses a 70-degree vertical field of view, 0.05 near plane, and 96-block far plane; fog hides the bounded residency edge. No external texture/font files are needed at runtime.
+
+F5 explicitly saves player position, yaw/pitch, and all block overrides to `voxela-world.vxa` in the working directory. F9 explicitly loads it; use the matching `--seed` (default 42). Saving/loading is manual, including on exit/startup. The HUD and console report results. Move saves with their seed to another directory to keep separate worlds; there is currently one named save per working directory. Invalid/corrupt/unsafe saves leave the current world intact. The streamed format is separate from `voxela-demo.vxa` and does not migrate legacy demo saves.
+
+Only a bounded 5×5 set of columns is resident, but you can continue exploring the entire supported X/Z range (−30,000,000 inclusive to +30,000,000 exclusive), with Y 0–255. New columns replace distant ring slots and reapply the persistent edit journal. The player and meshes rebase around the current chunk center so large coordinates stay accurate. The journal supports 8,192 distinct overridden cells across the whole world; reaching that limit refuses new overrides without discarding existing ones. Updating an existing override or reverting it to generated terrain still works. Streaming and whole-view remeshing are synchronous and can cause a pause at chunk transitions; worker scheduling, configurable distance, and region-backed edit storage remain future work.
+
+![Actual first-person renderer readback](docs/first-person-preview.png)
+
+`--smoke` renders three frames and reads a terrain pixel below the HUD crosshair, rejecting the sky clear color and OpenGL errors. It skips input/capture; use `SDL_VIDEODRIVER=offscreen` on a machine supporting that SDL driver. A driver without OpenGL 3.3 fails startup. Software-rendered checks validate behavior, not hardware performance.
+
+The old viewer and save format remain available through `make demo` and `./build/linux/debug/voxela-demo` (`make TARGET=windows demo` on Windows). Its orthographic controls and four-section behavior are retained for regression; the Windows downloadable `VoxelA.exe` now launches the first-person game.
 
 `tests/chunks.py` independently checks all 24,576 cell/face neighbor mappings, exact face records for isolated blocks, mixed materials and random sections, neighboring-section occlusion, canaries, invalid IDs, capacity failures, lookup statuses, revision overflow, and neighbor invalidation. It runs under both `reference` and `abi-reference`.
 
@@ -116,7 +133,7 @@ Every function follows the selected native ABI and may clobber volatile register
 
 For `lattice`, compute `mix64(seed XOR (x * 0xd6e8feb86659fd93) XOR (z * 0xa5a3564e27f8862f)) >> 48`, with modulo-2^64 arithmetic. Noise uses floor-divided global lattice positions and signed interpolation rounding toward negative infinity. Quintic multiplication rounds after each specified product; `tests/reference.py` defines an independent exact reference for prototype fixtures. Blocks use IDs air=0, stone=1, dirt=2, grass=3, sand=4, wood=5, leaves=6, bedrock=7.
 
-Remaining first-playable work starts with a texture atlas, streaming lifecycle, and collision-aware player movement. The section cache currently has linear lookup and no eviction or asynchronous jobs. Demo edits can be saved and loaded; region/world persistence, entities, survival rules, UI, and audio are still unimplemented.
+The first-person walking milestone is implemented. Next work includes trees/caves and richer biomes, region-backed storage beyond the bounded journal, asynchronous streaming, entities, inventory/crafting, health/hunger, creative flight, and audio. The original generic cache remains a linear lookup primitive; the player game layers a bounded ring-residency lifecycle on it.
 
 ## Initial technical direction
 
@@ -163,11 +180,11 @@ Completion check: blocks can be read and changed accurately across adjacent sect
 ### 3. Chunk rendering and interaction
 
 - [x] Implement an orthographic spectator camera, projection, depth testing, and colored opaque block rendering.
-- [ ] Add a texture atlas and textured block rendering.
-- [ ] Build meshes containing only exposed faces; update adjoining meshes after boundary edits.
-- [ ] Upload and release vertex/index buffers safely; keep graphics API operations on the context-owning thread.
+- [x] Add an original texture atlas and textured block rendering.
+- [x] Build exposed-face meshes and rebuild the resident view after edits, including adjoining boundaries.
+- [x] Upload/release nonindexed vertex buffers on the context-owning thread; indexed optimization remains future work.
 - [ ] Add view-distance limits and frustum culling.
-- [x] Implement voxel raycasting, block highlighting, placement, and removal in the bounded viewer.
+- [x] Implement voxel raycasting, block highlighting, placement, and removal in the first-person and legacy viewers.
 - [ ] Separate transparent/cutout rendering from opaque meshes when those blocks are added.
 - [ ] Add greedy meshing or equivalent mesh reduction after the basic path is correct.
 
@@ -190,8 +207,8 @@ Completion check: identical world identities produce identical chunk hashes acro
 
 - [ ] Prioritize generation and meshing near the player with bounded queues and memory budgets.
 - [ ] Start with budgeted single-threaded work, then add workers with explicit synchronization and cancellation.
-- [ ] Unload distant chunks safely and invalidate stale mesh jobs.
-- [ ] Implement camera-relative rendering and accurate movement at distant coordinates.
+- [x] Replace distant synchronous ring slots safely and reapply edits; asynchronous job invalidation remains future work.
+- [x] Implement chunk-relative rendering and double-precision movement at distant coordinates.
 - [ ] Define a versioned region/save format for metadata, block edits, player state, and persistent entities.
 - [x] Validate file lengths and identifiers, replace a single demo save atomically, and reject corrupt demo snapshots. Region/world persistence remains outstanding.
 - [ ] Save on explicit request and orderly exit; document recovery behavior after interruption.
@@ -202,7 +219,7 @@ Completion check: long-distance travel keeps memory bounded, edited worlds survi
 ### 6. Player physics and entities
 
 - [ ] Define stable entity IDs, position, velocity, bounds, type, health, and lifecycle rules.
-- [ ] Implement player movement, gravity, jumping, and collision against solid blocks.
+- [x] Implement player walking, gravity, jumping, wall sliding, and collision against solid blocks.
 - [ ] Use a spatial index for nearby entity queries and collision candidates.
 - [ ] Add dropped items and at least one simple creature with spawning, movement, and basic behavior.
 - [ ] Define entity behavior at unloaded chunk boundaries and persistence rules.
@@ -461,3 +478,25 @@ Section ordinal is `sectionZ * 2 + sectionX` (0–3); local index is `localY * 2
 `file_load(path,out,capacity)` performs a bounded read and checks for trailing bytes beyond capacity. It returns byte length or -1. Its output is staging storage and may contain partial reads on failure; the live world is never passed as that buffer. Runtime saves are ignored by Git.
 
 Run `make save-reference` on Linux to test both the codec and real filesystem adapter. On Windows build `make TARGET=windows build/windows/debug/save_tests.dll`, then use UCRT64 Python to run `tests/snapshot.py` and `tests/save_file.py` against that DLL. CI runs those tests for both Windows configurations; local cross-linking does not establish native Windows execution. Codec tests include independent exact wire bytes, maximum-size snapshots, malformed/reordered/duplicate records, truncated/oversized data, immutable bedrock, invalid versions, checksum corruption, and output canaries. Linux filesystem tests cover real replacement, spaces in paths, missing directories, stale temporaries, symlinks, bounded reads, and a simulated file-size limit causing a partial write. Graphics tests save an edit, destroy/recreate the renderer, reload it, and compare the full framebuffer while checking failure preservation and saved/mesh revisions.
+
+### First-person engine contracts
+
+`Stream96` owns no memory. `stream_init(world,config)` takes a caller-owned configuration containing seed, 400 cache entries, 3,276,800 block bytes, and 262,144 edit bytes. The ring slot is `(floor_mod(SX,5)*5 + floor_mod(SZ,5))*16 + SY`. `stream_recenter(world,SX,SZ)` retains matching slots and regenerates only arriving columns, returning 1 changed, 0 unchanged, or -1 invalid. The center clamps inward at world edges so every resident section coordinate is valid. Each arrival receives a new lifetime token; single-thread ownership prevents reads during replacement. `stream_get` returns a block ID or -1 for unavailable/outside cells. Physics treats those cells as solid barriers.
+
+`stream_edit(world,coords,id)` returns 1 changed, 0 unchanged, -1 invalid/unloaded, or -2 full journal. It validates ID 0–6, excludes Y=0 bedrock, checks cache revision overflow, and reserves journal capacity before changing blocks. Overrides store signed int64 world XYZ and uint64 block ID, including air. A value equal to deterministic generated terrain removes its journal entry. Journal records are unique, nonredundant overrides but not sorted. The authoritative journal retains edits for unloaded columns, independent of their slot lifetime. `generated_block(seed,coords)` is independently tested against every sampled generated resident section.
+
+`Player80` stores double feet XYZ, float yaw/pitch and four cached trig values, double vertical velocity, grounded flag, float aspect, reserved zero, and jump-edge latch. Body width is 0.6 blocks and height 1.8; eye height is 1.62. `player_look(player,dx,dy)` uses 0.0025 radians per pixel, wraps yaw, and clamps pitch to ±1.5. `player_step(world,player,mask,elapsed_ms)` accepts W/S/A/D/jump/sprint bits 1/2/4/8/16/32. Opposing directions cancel, diagonals normalize, walk speed is 4.3 blocks/s and sprint 6.4. Gravity is 24 blocks/s², jump velocity 8, and terminal fall velocity −40. Frame delta is capped at 100 ms and subdivided into at most 10 ms steps. Axis-separated X/Z/Y movement samples the entire overlapped voxel AABB, snaps to blocking faces, permits wall sliding, and clears vertical velocity on ceiling/floor contact. Grounded jumps require a fresh key press; holding Space does not repeat jumps. There is no automatic stair-step, crouching, flight, fall damage, or creature collision yet.
+
+`player_ray` creates the center-view eye ray with a five-block reach. The player renderer uses existing DDA selection and rejects solid placement intersecting the player AABB. All selected-block edits go through the same journal/cache path; the HUD reports a full journal rather than evicting data. `play_rebuild` meshes 400 sections against six loaded neighbors, expands into a bounded 1,000,000-vertex buffer (32-byte XYZ/RGB/UV records), and uploads once. Section origins and the double eye position are rebased to the current stream center before float conversion. Geometry, an outline pass, and a separate depth-disabled HUD pass share the embedded shader. Textures are 16×16 tiles in a 256×16 RGBA atlas; nearest sampling and half-texel UV insets prevent tile bleeding. Grass/wood choose different side/top tiles; leaf alpha is cut out. Original assets and hand-authored 5×7 glyphs are CC0; `tools/generate_play_assets.py` reproduces the committed embedded binaries. CPU buffers use approximately 40 MiB plus SDL/driver overhead; uploaded geometry is capped at 32 MB.
+
+### Streamed player save format
+
+`voxela-world.vxa` uses magic `VXAWALK` plus zero, format 1, generator prototype 0, registry 1, and a 128-byte header. Header offsets 0–39 follow the demo's magic/version/count/seed/payload-length layout. Offset 40 is FNV-1a over the complete header and payload with checksum bytes treated as zero. Offsets 48/56 and 96–127 are reserved zero. Offsets 64/72/80 store double player feet XYZ; 88/92 store float yaw/pitch. The payload contains up to 8,192 explicit 32-byte records: int64 X/Y/Z and uint64 block ID. Exact file length is `128 + count*32`, capped at 262,272 bytes; this is also the platform adapter's new bound. It stores all overrides, including ones outside current residency. It has no region offsets, entity records, health/inventory/mode metadata, or recovery manifest yet.
+
+`walk_encode(world,player,out,capacity)` validates the journal, initialized world, in-bounds finite pose, and absence of player/block overlap before writing, returning bytes, -1 invalid, or -2 capacity. `walk_decode(bytes,length,world,player)` rejects incompatible seed/version, duplicate, redundant, or invalid records, reserved fields, trailing/truncated data, checksum failure, nonfinite angles/positions, and a player body embedded in generated terrain plus overrides. It validates the complete snapshot and prospective body before replacing the live journal/player/residency. Accepted loads preserve current aspect, rebuild residency at the saved position, and reset vertical velocity/grounded/jump state; gravity resumes normally. Inputs must not overlap destination buffers. F5/F9 use the same exclusive temporary-file/flush/replacement adapters described above. Successful writes replace the prior file; backups, autosave, recovery manifests, Unicode Windows paths, simultaneous-world-writer locks, and remote-filesystem durability remain future work.
+
+### First-person validation
+
+`tests/player.py` checks generated-vs-resident blocks, negative ring coordinates, unchanged recentering, edit eviction/reload/reversion, bedrock, full-journal atomic refusal/reuse, grounding, fresh-press jumps, landing, sprint/delta limits, diagonal speed, walls, sliding, ceilings, ray direction, overlap rejection, and invalid input preservation under both calling conventions. `tests/walk_save.py` independently builds exact bytes/checksums and verifies that malformed metadata, records, poses, or embedded-player snapshots leave player, edits, entries, and blocks unchanged. These tests also run against the native Windows test DLL in CI.
+
+`make play-reference` checks real OpenGL textures, perspective, HUD/pause, mouse look, walking, resize, aimed editing, player overlap rejection, complete save/restart/load, configured seed spawning, and rebase/save/reload around ±16 million coordinates. `make window-reference` runs the actual window executable in an isolated temporary directory with a test-only assembly SDL input/time driver: it walks/jumps through several chunk boundaries, aims and breaks a block, saves/loads, pauses/resumes, and exits. The input driver synthesizes relative input and capture success because no physical mouse is attached; it does not establish hardware mouse support or native Windows graphics execution. The shim is never linked into the game or included in the Windows package. Run both graphical targets with offscreen SDL or Xvfb. CI still builds/uploads the first-person Windows executable package on every push to main; remote job results are not inferred from local cross-linking.

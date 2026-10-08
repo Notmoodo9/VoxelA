@@ -27,12 +27,12 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
 objects: $(OBJECTS) $(BUILD)/src/platform/main.o $(BUILD)/tests/runner.o
-$(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc
+$(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -f $(FORMAT) $< -o $@
 $(BUILD)/voxela$(EXT): $(OBJECTS) $(BUILD)/src/platform/main.o
@@ -51,6 +51,8 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/camera.py $(BUILD)/libvoxela.so
 	python3 tests/raycast.py $(BUILD)/libvoxela.so
 	python3 tests/snapshot.py $(BUILD)/libvoxela.so
+	python3 tests/player.py $(BUILD)/libvoxela.so
+	python3 tests/walk_save.py $(BUILD)/libvoxela.so
 endif
 clean:
 	rm -rf build
@@ -59,7 +61,7 @@ clean:
 # runtime validation. Prefix symbols so the shim can expose the same API.
 ifeq ($(TARGET),linux)
 WIN_ABI_OBJECTS = $(patsubst %.asm,$(BUILD)/win-abi/%.o,$(CORE))
-$(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc
+$(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -DWINDOWS_ABI=1 -f elf64 $< -o $@.raw
 	objcopy --prefix-symbols=win_ $@.raw $@
@@ -73,6 +75,8 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/camera.py $<
 	python3 tests/raycast.py $<
 	python3 tests/snapshot.py $<
+	python3 tests/player.py $<
+	python3 tests/walk_save.py $<
 endif
 
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
@@ -81,7 +85,7 @@ SDL_LIBS ?= -lSDL2
 IO_OBJECT = $(BUILD)/src/platform/save_file.o
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
-$(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o $(IO_OBJECT)
+$(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/play_window.o $(BUILD)/src/render/play.o $(IO_OBJECT)
 	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 
 ifeq ($(TARGET),linux)
@@ -104,9 +108,31 @@ else
 SAVE_LIBRARY = $(BUILD)/libsave_tests.so
 SAVE_LINK_FLAGS = -shared -Wl,-Bsymbolic -Wl,-z,noexecstack
 endif
-$(SAVE_LIBRARY): $(BUILD)/src/core/hash.o $(BUILD)/src/world/snapshot.o $(IO_OBJECT)
-	$(LINKER) $(SAVE_LINK_FLAGS) $^ -o $@
+$(SAVE_LIBRARY): $(OBJECTS) $(IO_OBJECT)
+	$(LINKER) $(SAVE_LINK_FLAGS) $^ $(MATH_LIBS) -o $@
 .PHONY: save-reference
 save-reference: $(SAVE_LIBRARY)
 	python3 tests/snapshot.py $<
 	python3 tests/save_file.py $<
+
+$(BUILD)/src/render/play.o: assets/shaders/play.vert assets/shaders/play.frag assets/textures/blocks.rgba assets/textures/font5x7.bin include/gl.inc include/gl_names.inc
+ifeq ($(TARGET),linux)
+$(BUILD)/libplay.so: $(OBJECTS) $(BUILD)/src/render/play.o $(IO_OBJECT)
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
+.PHONY: play-reference
+play-reference: $(BUILD)/libplay.so
+	python3 tests/play.py $<
+endif
+
+# Keep the bounded orthographic demo for regression and old demo saves.
+.PHONY: demo
+demo: $(BUILD)/voxela-demo$(EXT)
+$(BUILD)/voxela-demo$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o $(IO_OBJECT)
+	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
+ifeq ($(TARGET),linux)
+$(BUILD)/input_driver.so: $(BUILD)/tests/input_driver.o
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ -o $@
+.PHONY: window-reference
+window-reference: $(BUILD)/voxela-window $(BUILD)/input_driver.so
+	python3 tests/window_play.py $^
+endif

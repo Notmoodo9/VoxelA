@@ -8,7 +8,7 @@ section .text
 %endif
 ; Single calling thread. file_save(path,bytes,length)->0 committed,
 ; -1 failure before replacement, -2 replacement done but directory sync failed.
-; path 1..959 bytes, same-directory exclusive .tmp, bounded 131136 bytes.
+; path 1..959 bytes, same-directory exclusive .tmp, bounded 262272 bytes.
 ; An existing .tmp is NEVER overwritten/deleted (e.g. interrupted other writer).
 ; Windows paths use ANSI CreateFileA; Unicode-path adapter is future work.
 FRAME file_save,2200
@@ -19,7 +19,7 @@ FRAME file_save,2200
  mov qword [rsp+88],0
  mov qword [rsp+96],0 ; owns temporary
  mov qword [rsp+104],-1 ; outcome
- cmp A2,131136
+ cmp A2,262272
  ja .done
  xor r10d,r10d
  mov r11,A0
@@ -196,7 +196,7 @@ FRAME file_load,136
  mov qword [rsp+80],-1
  mov qword [rsp+88],0
  mov qword [rsp+104],-1
- cmp A2,131136
+ cmp A2,262272
  ja .done
 %ifdef WINDOWS_ABI
  mov A1,0x80000000 ; GENERIC_READ
@@ -247,7 +247,7 @@ FRAME file_load,136
 .read_result:
  test rax,rax
  jz .eof
- cmp qword [rsp+88],131136
+ cmp qword [rsp+88],262272
  jae .cleanup
  mov r10,[rsp+88]
  cmp r10,[rsp+72]

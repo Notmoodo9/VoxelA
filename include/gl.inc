@@ -26,7 +26,16 @@
 %define glGetUniformLocation 200
 %define glUniform3fv 208
 %define glUniform2fv 216
-%define GL_PROC_COUNT 28
+%define glGenTextures 224
+%define glBindTexture 232
+%define glTexImage2D 240
+%define glTexParameteri 248
+%define glDeleteTextures 256
+%define glActiveTexture 264
+%define glUniform1i 272
+%define glUniform4fv 280
+%define glDisable 288
+%define GL_PROC_COUNT 37
 %macro GLCALL 1
  call [gl+%1]
 %endmacro

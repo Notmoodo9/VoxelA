@@ -26,6 +26,15 @@ gl_name_24: db "glGetError",0
 gl_name_25: db "glGetUniformLocation",0
 gl_name_26: db "glUniform3fv",0
 gl_name_27: db "glUniform2fv",0
+gl_name_28: db "glGenTextures",0
+gl_name_29: db "glBindTexture",0
+gl_name_30: db "glTexImage2D",0
+gl_name_31: db "glTexParameteri",0
+gl_name_32: db "glDeleteTextures",0
+gl_name_33: db "glActiveTexture",0
+gl_name_34: db "glUniform1i",0
+gl_name_35: db "glUniform4fv",0
+gl_name_36: db "glDisable",0
 align 4
 gl_names:
 dd gl_name_0-gl_names
@@ -56,3 +65,12 @@ dd gl_name_24-gl_names
 dd gl_name_25-gl_names
 dd gl_name_26-gl_names
 dd gl_name_27-gl_names
+dd gl_name_28-gl_names
+dd gl_name_29-gl_names
+dd gl_name_30-gl_names
+dd gl_name_31-gl_names
+dd gl_name_32-gl_names
+dd gl_name_33-gl_names
+dd gl_name_34-gl_names
+dd gl_name_35-gl_names
+dd gl_name_36-gl_names
