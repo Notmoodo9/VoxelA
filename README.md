@@ -152,6 +152,8 @@ reset on load or mode changes, and flight is available only in Creative.
   Ambient music and block-specific sound; C418 only with suitable rights,
   otherwise original or properly licensed music.
 
+The current dependency milestone and next acceptance criteria are in [PROGRESS.md](PROGRESS.md).
+
 ## Fifty major delivery features
 
 These are substantial delivery milestones, not fifty claims of completed work.
@@ -304,6 +306,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [ ] Title screen, named world list, create/delete UI, seed and mode/difficulty entry.
 - [ ] Per-user world directories, settings and crash-safe metadata files.
 - [x] CPU/file-only: checksummed mixed-generator terrain regions preserving complete sections and edits.
+- [x] CPU/file-only: bounded region LRU with revision-checked persistence and dirty-eviction refusal.
 - [ ] Adopt region-backed terrain/edits/containers/entities in gameplay; remove global-journal limits.
 - [ ] Persist generator version per recorded chunk; explicit legacy import rules.
 - [ ] Bounded distance-prioritized generation/mesh/upload queues and cancellation.

@@ -288,5 +288,13 @@ SHIM region_edit
 SHIM region_checksum
 SHIM region_encode
 SHIM region_decode
+SHIM region_cache_init
+SHIM region_cache_get
+SHIM region_cache_dirty
+SHIM region_cache_clean
+SHIM region_cache_evict
+SHIM region_cache_reserve
+SHIM region_cache_find
+SHIM region_cache_publish
 SHIM landscape_sample
 section .note.GNU-stack noalloc noexec nowrite progbits
