@@ -17,6 +17,7 @@ getproc=bind(sdl,'SDL_GL_GetProcAddress',[C.c_char_p],C.c_void_p)
 start=bind(engine,'play_init',[]);draw=bind(engine,'play_draw',[]);stop=bind(engine,'play_shutdown',[])
 look=bind(engine,'play_look',[C.c_int64,C.c_int64]);step=bind(engine,'play_step',[C.c_uint64,C.c_uint64]);resize=bind(engine,'play_resize',[C.c_uint64,C.c_uint64])
 getplayer=bind(engine,'play_get_player',[C.c_void_p]);pick=bind(engine,'play_pick',[]);hit=bind(engine,'play_get_hit',[C.c_void_p]);select=bind(engine,'play_select',[C.c_uint64]);apply=bind(engine,'play_apply',[C.c_uint64]);edit=bind(engine,'play_edit_cell',[C.c_void_p,C.c_uint64]);get=bind(engine,'play_get_block',[C.c_void_p])
+getgrid=bind(engine,'play_get_crafting',[C.c_void_p]);menunumber=bind(engine,'play_menu_number',[C.c_uint64]);menuclear=bind(engine,'play_menu_clear',[]);scroll=bind(engine,'play_scroll',[C.c_int64]);copyblock=bind(engine,'play_copy_block',[])
 frametime=bind(engine,'play_frame_time',[C.c_uint64])
 menutab=bind(engine,'play_menu_tab',[]);menuaction=bind(engine,'play_menu_action',[C.c_uint64,C.c_uint64,C.c_uint64]);pointer=bind(engine,'play_menu_pointer',[C.c_uint64,C.c_uint64]);menurelease=bind(engine,'play_menu_release',[C.c_uint64,C.c_uint64])
 menu=bind(engine,'play_menu',[C.c_uint64]);menuopen=bind(engine,'play_menu_open',[]);menuclick=bind(engine,'play_menu_click',[C.c_uint64,C.c_uint64])
@@ -44,23 +45,22 @@ try:
  image=capture();assert len(set(image[i:i+3] for i in range(0,len(image),4)))>200,'no texture/fog variation'
  # Storage/standard controls work independently of the hotbar.
  inv36=(C.c_ubyte*304)();assert menu(1)==0
- assert menuaction(40,160,2)==1 # shift dirt into storage
+ assert menuaction(176,104,2)==1 # shift dirt into storage
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,72)==(2,32)
- assert menuaction(40,340,1)==1 # split storage stack into cursor
+ assert menuaction(176,220,1)==1 # split storage stack into cursor
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,296)==(2,16)
- assert menuaction(104,340,1)==1 # place one in next storage slot
+ assert menuaction(212,220,1)==1 # place one in next storage slot
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,80)==(2,1)
- assert menuaction(168,340,0)==1 # place remaining15
- assert menuaction(168,340,2)==1 # shift remaining15 back to hotbar
- assert menuaction(104,160,0)==1 # pick up starter wood
- assert pointer(552,220)==0 and menurelease(552,220)==1 # drag into last storage slot
+ assert menuaction(248,220,0)==1 # place remaining15
+ assert menuaction(248,220,2)==1 # shift remaining15 back to hotbar
+ assert menuaction(212,104,0)==1 # pick up starter wood
+ assert pointer(464,148)==0 and menurelease(464,148)==1 # drag into last storage slot
  assert getinventory(inv36)==0 and struct.unpack_from('<HH',inv36,280)==(5,8)
- assert menuaction(40,200,0)==0,'storage/hotbar separator accepted a click'
+ assert menuaction(176,126,0)==0,'storage/hotbar separator accepted a click'
  # Walk the held wood stack through every empty cell in the reordered layout.
  # This verifies visual-row indexing against actual serialized slot identities.
  def slotpoint(index):
-  row=3 if index<9 else index//9-1
-  return (32+(index%9)*64+28,330-row*60+28-(10 if index<9 else 0))
+  return (160+(index%9)*36+16,104 if index<9 else 220-(index//9-1)*36)
  source=35
  for destination in [i for i in range(1,36) if i not in (9,10,35)]:
   assert menuaction(*slotpoint(source),0)==1
@@ -71,6 +71,43 @@ try:
   assert bytes(inv36[296:304])==bytes(8)
   source=destination
  assert menu(0)==0 and stop()==0 and start()==0 and capture()==image
+ # Playable shaped2x2 grid: autofill, previews, result, shift-repeat and saves.
+ grid=(C.c_ubyte*32)();assert menu(1)==0
+ assert menuclick(180,342)==1 and getgrid(grid)==0
+ assert struct.unpack_from('<HH',grid,0)==(5,1)
+ crafting_image=capture();assert crafting_image!=image,'crafting grid preview absent'
+ if len(sys.argv)>4:png(sys.argv[4],crafting_image)
+ assert menuclick(464,332)==1 and getinventory(inv36)==0
+ assert struct.unpack_from('<HH',inv36,296)==(8,4)
+ assert menuaction(356,350,1)==1 and menuaction(356,314,1)==1
+ assert getgrid(grid)==0 and struct.unpack_from('<HH',grid,0)==(8,1) and struct.unpack_from('<HH',grid,16)==(8,1)
+ assert menuclick(464,332)==0,'different held item accepted crafting result'
+ assert menuclick(248,104)==1 # return held planks into hotbar slot2
+ assert menuclick(464,332)==1 and getinventory(inv36)==0
+ assert struct.unpack_from('<HH',inv36,296)==(9,4)
+ assert menuclick(284,104)==1
+ assert menuclick(180,342)==1
+ with tempfile.TemporaryDirectory(prefix='VoxelA shaped grid ') as grid_folder:
+  grid_path=str(Path(grid_folder)/'grid.vxa').encode();assert save(grid_path)==0
+  saved_grid=bytes(grid);assert getgrid(grid)==0;saved_grid=bytes(grid)
+  assert menuclear()==1 and getgrid(grid)==0 and bytes(grid)==bytes(32)
+  assert load(grid_path)==0 and getgrid(grid)==0 and bytes(grid)==saved_grid,'persisted grid changed'
+ assert menu(0)==0 and getgrid(grid)==0 and bytes(grid)==saved_grid,'closing lost grid ingredients'
+ assert menu(1)==0 and menuaction(464,332,2)==1 and getgrid(grid)==0 and bytes(grid)==bytes(32)
+ assert menuclick(180,306)==1 and menuaction(464,332,2)==1,'sticks autofill/repeat'
+ assert pointer(284,104)==0 and menunumber(8)==1 and getinventory(inv36)==0
+ assert struct.unpack_from('<HH',inv36,64)==(9,8),'hovered number-key swap'
+ assert menuclick(464,104)==1 and menuaction(464,104,3)==0 and menuclick(464,104)==1,'double-click full matching cursor'
+ assert pointer(176,104)==0 and capture()!=image,'hover tooltip missing'
+ assert menu(0)==0 and select(1)==0 and scroll(1)==1 and getinventory(inv36)==0
+ assert struct.unpack_from('<I',inv36,288)[0]==8,'wheel previous wrap'
+ assert scroll(-1)==1 and getinventory(inv36)==0 and struct.unpack_from('<I',inv36,288)[0]==0
+ assert menu(1)==0 and scroll(1)==0,'menu wheel changed hotbar'
+ menu_fps_before=capture()
+ for _ in range(60):assert frametime(17)==0
+ assert capture()!=menu_fps_before,'menu FPS did not update'
+ assert menuclick(180,278)==1 and menutab()==0 and menu(0)==0,'recipe button navigation'
+ assert stop()==0 and start()==0 and capture()==image
  # Real scaled inventory panel, read-only availability and clickable recipes.
  menu_inventory=(C.c_ubyte*304)()
  assert getinventory(menu_inventory)==0;fresh_inventory=bytes(menu_inventory)
@@ -128,6 +165,9 @@ try:
  inv=(C.c_ubyte*304)();assert getinventory(inv)==0
  assert struct.unpack_from('<HH',inv,0)==(2,32)
  assert original in [2,3,4,6],original
+ assert copyblock()==0 and mode(1)==0 and copyblock()==1 and getinventory(inv)==0
+ assert struct.unpack_from('<I',inv,288)[0]==original-1
+ assert mode(0)==0 and select(1)==0
  # Hold duration and release reset are tested through the real renderer API.
  assert mine(2,100)==-1
  assert mine(1,100)==0 and get(cell)==original
@@ -195,7 +235,7 @@ try:
   baseline=bytearray(path.read_bytes())
   def install_inventory(slots,selected=0):
    data=bytearray(baseline)
-   data[-304:]=b''.join(struct.pack('<HHHH',*slot) for slot in slots)+bytes((36-len(slots))*8)+struct.pack('<II',selected,0)+bytes(8)
+   data[-336:]=b''.join(struct.pack('<HHHH',*slot) for slot in slots)+bytes((36-len(slots))*8)+struct.pack('<II',selected,0)+bytes(40)
    checksum=0xcbf29ce484222325
    for i,b in enumerate(data):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
    struct.pack_into('<Q',data,40,checksum);path.write_bytes(data)
@@ -205,7 +245,7 @@ try:
   assert getinventory(inv)==0;before_inventory=bytes(inv)
   for _ in range(4):assert mine(1,100)==0
   assert get(cell)==original and getinventory(inv)==0 and bytes(inv)==before_inventory,'full bag consumed terrain or tool'
-  held_full=bytearray(path.read_bytes());held_full[-8:]=struct.pack('<HHHH',5,1,0,0)
+  held_full=bytearray(path.read_bytes());held_full[-40:-32]=struct.pack('<HHHH',5,1,0,0)
   checksum=0xcbf29ce484222325
   for i,b in enumerate(held_full):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
   struct.pack_into('<Q',held_full,40,checksum);path.write_bytes(held_full)
@@ -221,9 +261,9 @@ try:
   assert edit(cell,original)==1
   # Inventory staging must also roll back when the world journal is full.
   maximum=bytearray(baseline[:128])
-  struct.pack_into('<I',maximum,20,8192);struct.pack_into('<Q',maximum,32,8192*32+304)
+  struct.pack_into('<I',maximum,20,8192);struct.pack_into('<Q',maximum,32,8192*32+336)
   for i in range(8192):maximum.extend(struct.pack('<qqqQ',i%128,100,i//128,5))
-  maximum.extend(struct.pack('<HHHH',2,32,0,0)+struct.pack('<HHHH',5,8,0,0)+bytes(272)+struct.pack('<II',0,0)+bytes(8))
+  maximum.extend(struct.pack('<HHHH',2,32,0,0)+struct.pack('<HHHH',5,8,0,0)+bytes(272)+struct.pack('<II',0,0)+bytes(40))
   checksum=0xcbf29ce484222325
   for i,b in enumerate(maximum):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
   struct.pack_into('<Q',maximum,40,checksum);path.write_bytes(maximum)
@@ -233,7 +273,7 @@ try:
   assert mine(1,50)==-2 and get(cell)==original and getinventory(inv)==0
   assert bytes(inv)==before_inventory,'failed terrain edit consumed inventory'
   # Inventory reset on a successful legacy load, without requiring a new world.
-  legacy=bytearray(baseline[:-304]);struct.pack_into('<I',legacy,8,1)
+  legacy=bytearray(baseline[:-336]);struct.pack_into('<I',legacy,8,1)
   struct.pack_into('<Q',legacy,32,len(legacy)-128);struct.pack_into('<Q',legacy,96,0)
   checksum=0xcbf29ce484222325
   for i,b in enumerate(legacy):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff

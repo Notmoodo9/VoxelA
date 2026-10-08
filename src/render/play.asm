@@ -12,8 +12,8 @@
 %define inventory_can_craft inventory36_can_craft
 %define inventory_count inventory36_count
 %define inventory_transfer inventory36_transfer
-%define game_encode game36_encode
-%define game_decode game36_decode
+%define game_encode game_grid_encode
+%define game_decode game_grid_decode
 section .text
 extern SDL_GL_GetProcAddress, puts
 extern stream_init, stream_recenter, stream_get, stream_edit, terrain_height
@@ -21,7 +21,9 @@ extern player_init, player_step, player_look, player_resize, player_ray, player_
 extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
-extern inventory36_click, inventory36_quick
+extern inventory36_click, inventory36_quick, inventory36_swap
+extern craft_collect, craft_preview, craft_click, craft_take, craft_repeat, craft_fill, craft_clear
+extern inventory_ui_position, inventory_ui_slot, inventory_ui_metrics
 extern inventory_can_craft, inventory_count, inventory_transfer
 extern inventory_init, inventory_add, inventory_craft, inventory_consume, inventory_wear, mine_duration
 FRAME compile_play_shader,72
@@ -270,6 +272,13 @@ FRAME play_init,120
  mov dword [screen_height],600
  lea A0,[inventory]
  call inventory_init
+ mov qword [inventory+304],0
+ mov qword [inventory+312],0
+ mov qword [inventory+320],0
+ mov qword [inventory+328],0
+ lea A0,[screen_width]
+ lea A1,[menu_metrics]
+ call inventory_ui_metrics
  mov qword [mining_time],0
  mov qword [mining_required],0
  mov qword [menu_open],0
@@ -539,6 +548,9 @@ FRAME play_resize,56
  mov [screen_width],eax
  mov eax,[rsp+40]
  mov [screen_height],eax
+ lea A0,[screen_width]
+ lea A1,[menu_metrics]
+ call inventory_ui_metrics
  xor eax,eax
 .done:
 END_FRAME play_resize,56
@@ -707,6 +719,97 @@ play_get_inventory:
  jb .copy
  xor eax,eax
  ret
+global play_get_crafting
+play_get_crafting:
+ mov r10,A0
+ mov rax,[inventory+304]
+ mov [r10],rax
+ mov rax,[inventory+312]
+ mov [r10+8],rax
+ mov rax,[inventory+320]
+ mov [r10+16],rax
+ mov rax,[inventory+328]
+ mov [r10+24],rax
+ xor eax,eax
+ ret
+FRAME play_menu_clear,40
+ cmp qword [menu_open],0
+ je .none
+ lea A0,[inventory]
+ call craft_clear
+ jmp .done
+.none: xor eax,eax
+.done:
+END_FRAME play_menu_clear,40
+FRAME play_menu_number,56
+ mov [rsp+32],A0
+ cmp A0,9
+ jae .bad
+ cmp qword [menu_open],0
+ je .none
+ mov A0,[menu_pointer_x]
+ mov A1,[menu_pointer_y]
+ call menu_slot
+ cmp rax,36
+ jae .none
+ lea A0,[inventory]
+ mov A1,rax
+ mov A2,[rsp+32]
+ call inventory36_swap
+ jmp .done
+.none: xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME play_menu_number,56
+; Positive wheel goes toward previous slot; negative toward next, wrapping9.
+global play_scroll
+play_scroll:
+ cmp qword [menu_open],0
+ jne .none
+ cmp A0,0
+ je .none
+ mov eax,[inventory+288]
+ jl .next
+ dec eax
+ jns .write
+ mov eax,8
+ jmp .write
+.next:
+ inc eax
+ cmp eax,9
+ jb .write
+ xor eax,eax
+.write:
+ mov [inventory+288],eax
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ mov eax,1
+ ret
+.none: xor eax,eax
+ ret
+; Creative palette picking selects only registered buildable blocks1..6.
+global play_copy_block
+play_copy_block:
+ cmp qword [menu_open],0
+ jne .none
+ cmp dword [inventory+292],1
+ jne .none
+ cmp qword [selection_valid],0
+ je .none
+ mov rax,[hit+64]
+ cmp rax,1
+ jb .none
+ cmp rax,6
+ ja .none
+ dec eax
+ mov [inventory+288],eax
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ mov eax,1
+ ret
+.none: xor eax,eax
+ ret
 FRAME play_craft,40
  cmp dword [inventory+292],1
  je .rejected
@@ -788,63 +891,10 @@ play_menu_pointer:
  mov [menu_pointer_y],A1
 .done: xor eax,eax
  ret
-; Shared pointer hit test: storage above hotbar; recipe page retains its hotbar.
-menu_slot:
- cmp A0,32
- jb .none
- cmp A0,600
- jae .none
- cmp qword [menu_page],0
- jne .legacy_bounds
- cmp A1,140
- jb .none
- cmp A1,196
- jb .hotbar
- cmp A1,210
- jb .none
-.legacy_bounds:
- cmp A1,150
- jb .none
- cmp A1,386
- jae .none
- mov r10,A0
- sub r10,32
- mov r11,A1
- mov rax,385
- sub rax,r11
- xor edx,edx
- mov ecx,60
- div rcx
- cmp edx,56
- jae .none
- cmp rax,4
- jae .none
- cmp qword [menu_page],1
- jne .row
- test rax,rax
- jnz .none
-.row:
- cmp qword [menu_page],0
- jne .row_index
- inc rax
-.row_index:
- imul r11,rax,9
- jmp .column
-.hotbar:
- mov r10,A0
- sub r10,32
- xor r11d,r11d
-.column:
- mov rax,r10
- xor edx,edx
- mov ecx,64
- div rcx
- cmp edx,56
- jae .none
- add rax,r11
- ret
-.none: mov rax,-1
- ret
+FRAME menu_slot,40
+ mov A2,[menu_page]
+ call inventory_ui_slot
+END_FRAME menu_slot,40
 FRAME play_menu_click,40
  xor A2,A2
  call play_menu_action
@@ -856,7 +906,7 @@ FRAME play_menu_action,72
  jae .ignored
  cmp A1,480
  jae .ignored
- cmp A2,2
+ cmp A2,3
  ja .ignored
  mov [rsp+32],A0
  mov [rsp+40],A1
@@ -866,6 +916,12 @@ FRAME play_menu_action,72
  test rax,rax
  js .recipe
  mov [rsp+56],rax
+ cmp qword [rsp+48],3
+ je .collect
+ cmp rax,40
+ je .result
+ cmp rax,36
+ jae .grid
  cmp qword [rsp+48],2
  je .quick
  cmp qword [inventory+296],0
@@ -884,7 +940,36 @@ FRAME play_menu_action,72
  mov A1,[rsp+56]
  call inventory36_quick
  jmp .done
+.collect:
+ lea A0,[inventory]
+ call craft_collect
+ jmp .done
+.grid:
+ cmp qword [inventory+296],0
+ jne .grid_click
+ cmp qword [rsp+48],0
+ jne .grid_click
+ mov [menu_drag_slot],rax
+.grid_click:
+ lea A0,[inventory]
+ mov A1,[rsp+56]
+ sub A1,36
+ mov A2,[rsp+48]
+ call craft_click
+ jmp .done
+.result:
+ lea A0,[inventory]
+ cmp qword [rsp+48],2
+ je .repeat
+ xor A1,A1
+ call craft_take
+ jmp .done
+.repeat:
+ call craft_repeat
+ jmp .done
 .recipe:
+ cmp qword [menu_page],0
+ je .grid_buttons
  cmp qword [menu_page],1
  jne .ignored
  cmp qword [rsp+48],0
@@ -912,6 +997,54 @@ FRAME play_menu_action,72
  mov A0,rax
  call play_craft
  jmp .done
+.grid_buttons:
+ cmp qword [rsp+48],0
+ jne .ignored
+ mov rax,[rsp+32]
+ cmp rax,160
+ jb .ignored
+ cmp rax,312
+ jae .clear_button
+ mov rax,[rsp+40]
+ xor r11d,r11d
+ cmp rax,330
+ jb .sticks_button
+ cmp rax,354
+ jae .ignored
+ jmp .fill_button
+.sticks_button:
+ cmp rax,294
+ jb .book_button
+ cmp rax,318
+ jae .ignored
+ mov r11d,1
+ jmp .fill_button
+.book_button:
+ cmp rax,266
+ jb .ignored
+ cmp rax,290
+ jae .ignored
+ call play_menu_tab
+ mov eax,1
+ jmp .done
+.fill_button:
+ lea A0,[inventory]
+ mov A1,r11
+ call craft_fill
+ jmp .done
+.clear_button:
+ cmp rax,340
+ jb .ignored
+ cmp rax,476
+ jae .ignored
+ mov rax,[rsp+40]
+ cmp rax,266
+ jb .ignored
+ cmp rax,290
+ jae .ignored
+ lea A0,[inventory]
+ call craft_clear
+ jmp .done
 .ignored: xor eax,eax
 .done:
 END_FRAME play_menu_action,72
@@ -924,6 +1057,8 @@ FRAME play_menu_release,56
  mov [rsp+40],A1
  call menu_slot
  cmp rax,[menu_drag_slot]
+ je .ignored
+ cmp rax,40
  je .ignored
  test rax,rax
  js .ignored
@@ -1155,7 +1290,8 @@ hud_rect:
  cvtsi2ss xmm1,dword [screen_width]
  cmp qword [hud_virtual],0
  je .width
- movss xmm1,[menu_width]
+ mulss xmm0,[menu_metrics]
+ addss xmm0,[menu_metrics+4]
 .width:
  divss xmm0,xmm1
  addss xmm0,xmm0
@@ -1168,7 +1304,8 @@ hud_rect:
  cvtsi2ss xmm1,dword [screen_height]
  cmp qword [hud_virtual],0
  je .height
- movss xmm1,[menu_height]
+ mulss xmm0,[menu_metrics]
+ addss xmm0,[menu_metrics+8]
 .height:
  divss xmm0,xmm1
  addss xmm0,xmm0
@@ -1286,18 +1423,47 @@ menu_white:
  mov dword [rect_uv+8],0xbf800000
  mov dword [rect_uv+12],0xbf800000
  ret
+menu_record:
+ cmp rax,40
+ je .output
+ cmp rax,36
+ jb .carried
+ add rax,2
+.carried:
+ lea r10,[inventory]
+ lea r10,[r10+rax*8]
+ ret
+.output:
+ lea r10,[menu_result]
+ ret
 FRAME play_menu_hud,72
  mov qword [hud_virtual],1
+ lea A0,[inventory]
+ call craft_preview
+ mov [menu_result],rax
+ mov A0,[menu_pointer_x]
+ mov A1,[menu_pointer_y]
+ call menu_slot
+ mov [menu_hover],rax
  call menu_white
- mov dword [rect],0x41a00000 ;20
- mov dword [rect+4],0x41a00000
- mov dword [rect+8],0x44160000 ;600
- mov dword [rect+12],0x43dc0000 ;440
+ mov dword [rect],__float32__(20.0)
+ mov dword [rect+4],__float32__(20.0)
+ mov dword [rect+8],__float32__(600.0)
+ mov dword [rect+12],__float32__(440.0)
+ cmp qword [menu_page],1
+ je .panel
+ mov dword [rect],__float32__(144.0)
+ mov dword [rect+4],__float32__(64.0)
+ mov dword [rect+8],__float32__(352.0)
+ mov dword [rect+12],__float32__(352.0)
+.panel:
  mov dword [rect_color],__float32__(0.76)
  mov dword [rect_color+4],__float32__(0.76)
  mov dword [rect_color+8],__float32__(0.76)
  call hud_rect
  call menu_white
+ cmp qword [menu_page],0
+ je .grid_labels
  lea A0,[menu_title]
  mov A1,32
  mov A2,426
@@ -1310,42 +1476,77 @@ FRAME play_menu_hud,72
  mov A1,32
  mov A2,386
  call hud_text
+ jmp .labels_done
+.grid_labels:
+ lea A0,[menu_title]
+ mov A1,160
+ mov A2,394
+ call hud_text
+ lea A0,[grid_label]
+ mov A1,340
+ mov A2,378
+ call hud_text
+ lea A0,[storage_label]
+ mov A1,160
+ mov A2,244
+ call hud_text
+ ; Three real buttons: autofill log/sticks recipes, return grid ingredients.
+ mov dword [rect],__float32__(160.0)
+ mov dword [rect+4],__float32__(330.0)
+ mov dword [rect+8],__float32__(152.0)
+ mov dword [rect+12],__float32__(24.0)
+ mov dword [rect_color],__float32__(0.35)
+ mov dword [rect_color+4],__float32__(0.35)
+ mov dword [rect_color+8],__float32__(0.35)
+ call hud_rect
+ mov dword [rect+4],__float32__(294.0)
+ call hud_rect
+ mov dword [rect],__float32__(340.0)
+ mov dword [rect+4],__float32__(266.0)
+ mov dword [rect+8],__float32__(136.0)
+ call hud_rect
+ mov dword [rect],__float32__(160.0)
+ mov dword [rect+8],__float32__(152.0)
+ call hud_rect
+ call menu_white
+ lea A0,[fill_wood_label]
+ mov A1,164
+ mov A2,335
+ call hud_text
+ lea A0,[fill_sticks_label]
+ mov A1,164
+ mov A2,299
+ call hud_text
+ lea A0,[book_button_label]
+ mov A1,164
+ mov A2,271
+ call hud_text
+ lea A0,[clear_grid_label]
+ mov A1,348
+ mov A2,271
+ call hud_text
+.labels_done:
  mov qword [rsp+32],0
 .slot:
- mov rax,[rsp+32]
- xor edx,edx
- mov ecx,9
- div rcx
- cmp qword [menu_page],0
- jne .visual_row
- test rax,rax
- jnz .storage_row
- mov eax,4
-.storage_row:
- dec rax
-.visual_row:
- mov [rsp+56],rax
- mov rax,rdx
- shl rax,6
- add rax,32
- mov [rsp+40],rax
- cvtsi2ss xmm0,rax
+ mov A0,[rsp+32]
+ mov A1,[menu_page]
+ lea A2,[rsp+40]
+ call inventory_ui_position
+ mov rax,[rsp+48]
+ mov [rsp+64],rax
+ cvtsi2ss xmm0,qword [rsp+40]
  movss [rect],xmm0
- mov rax,[rsp+56]
- imul rax,60
- mov r10,330
- sub r10,rax
- cmp qword [menu_page],0
- jne .slot_y
- cmp qword [rsp+32],9
- jae .slot_y
- sub r10,10
-.slot_y:
- mov [rsp+64],r10
- cvtsi2ss xmm0,r10
+ cvtsi2ss xmm0,rax
  movss [rect+4],xmm0
- mov dword [rect+8],0x42600000 ;56
- mov dword [rect+12],0x42600000
+ mov eax,32
+ cmp qword [menu_page],0
+ je .slot_size
+ mov eax,56
+.slot_size:
+ mov [rsp+56],rax
+ cvtsi2ss xmm0,eax
+ movss [rect+8],xmm0
+ movss [rect+12],xmm0
  mov dword [rect_color],__float32__(0.35)
  mov dword [rect_color+4],__float32__(0.35)
  mov dword [rect_color+8],__float32__(0.35)
@@ -1353,7 +1554,13 @@ FRAME play_menu_hud,72
  cmp rax,[menu_drag_slot]
  je .selected_border
  cmp eax,[inventory+288]
+ je .selected_border
+ cmp rax,[menu_hover]
  jne .border
+ mov dword [rect_color],__float32__(0.95)
+ mov dword [rect_color+4],__float32__(0.95)
+ mov dword [rect_color+8],__float32__(0.95)
+ jmp .border
 .selected_border:
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f600000
@@ -1365,23 +1572,29 @@ FRAME play_menu_hud,72
  add eax,2
  cvtsi2ss xmm0,eax
  movss [rect],xmm0
- mov dword [rect+8],__float32__(54.0)
- mov dword [rect+12],__float32__(54.0)
+ mov rax,[rsp+56]
+ sub eax,2
+ cvtsi2ss xmm0,eax
+ movss [rect+8],xmm0
+ movss [rect+12],xmm0
  call hud_rect
  mov rax,[rsp+64]
  add eax,2
  cvtsi2ss xmm0,eax
  movss [rect+4],xmm0
- mov dword [rect+8],__float32__(52.0)
- mov dword [rect+12],__float32__(52.0)
+ mov rax,[rsp+56]
+ sub eax,4
+ cvtsi2ss xmm0,eax
+ movss [rect+8],xmm0
+ movss [rect+12],xmm0
  mov dword [rect_color],__float32__(0.55)
  mov dword [rect_color+4],__float32__(0.55)
  mov dword [rect_color+8],__float32__(0.55)
  call hud_rect
  call menu_white
  mov rax,[rsp+32]
- lea r10,[inventory]
- movzx eax,word [r10+rax*8]
+ call menu_record
+ movzx eax,word [r10]
  test eax,eax
  jz .empty
  lea r10,[item_tiles]
@@ -1397,25 +1610,28 @@ FRAME play_menu_hud,72
  movss xmm0,[v_max]
  movss [rect_uv+12],xmm0
  mov rax,[rsp+40]
- add eax,8
+ add eax,4
  cvtsi2ss xmm0,eax
  movss [rect],xmm0
  mov rax,[rsp+64]
- add eax,18
+ add eax,4
  cvtsi2ss xmm0,eax
  movss [rect+4],xmm0
- mov dword [rect+8],0x42100000 ;36
- mov dword [rect+12],0x42100000
+ mov rax,[rsp+56]
+ sub eax,8
+ cvtsi2ss xmm0,eax
+ movss [rect+8],xmm0
+ movss [rect+12],xmm0
  call hud_rect
  call menu_white
  mov rax,[rsp+32]
- lea r10,[inventory]
- movzx ecx,word [r10+rax*8]
- movzx edx,word [r10+rax*8+2]
+ call menu_record
+ movzx ecx,word [r10]
+ movzx edx,word [r10+2]
  cmp ecx,10
  jb .count
  ; Tools show remaining wear as a bar, never as a stack count.
- movzx edx,word [r10+rax*8+4]
+ movzx edx,word [r10+4]
  mov eax,60
  cmp ecx,10
  je .wear_max
@@ -1424,12 +1640,13 @@ FRAME play_menu_hud,72
  cvtsi2ss xmm1,eax
  cvtsi2ss xmm0,edx
  divss xmm0,xmm1
- mov eax,40
+ mov rax,[rsp+56]
+ sub eax,8
  cvtsi2ss xmm1,eax
  mulss xmm0,xmm1
  movss [rect+8],xmm0
  mov rax,[rsp+40]
- add eax,8
+ add eax,4
  cvtsi2ss xmm0,eax
  movss [rect],xmm0
  mov rax,[rsp+64]
@@ -1449,7 +1666,7 @@ FRAME play_menu_hud,72
  call hud_number
  lea A0,[number_text]
  mov A1,[rsp+40]
- add A1,8
+ add A1,4
  mov A2,[rsp+64]
  add A2,2
  call hud_text
@@ -1461,7 +1678,7 @@ FRAME play_menu_hud,72
  jb .slot
  jmp .slots_done
 .storage_count:
- cmp qword [rsp+32],36
+ cmp qword [rsp+32],41
  jb .slot
 .slots_done:
  ; Selected slot's item name, independent of the Creative build palette.
@@ -1471,10 +1688,11 @@ FRAME play_menu_hud,72
  lea r10,[material_names]
  movsxd rax,dword [r10+rax*4]
  lea A0,[r10+rax]
- mov A1,32
- mov A2,120
+ mov A1,160
+ mov A2,48
  cmp qword [menu_page],0
  je .item_label
+ mov A1,32
  mov A2,310
 .item_label:
  call hud_text
@@ -1536,6 +1754,8 @@ FRAME play_menu_hud,72
  cmp qword [rsp+32],4
  jb .recipe
 .after_recipes:
+ cmp qword [menu_page],0
+ je .menu_status
  mov qword [rsp+32],0
 .owned:
  mov rax,[rsp+32]
@@ -1563,6 +1783,7 @@ FRAME play_menu_hud,72
  inc qword [rsp+32]
  cmp qword [rsp+32],4
  jb .owned
+ .menu_status:
  mov A0,[status]
  mov A1,32
  mov A2,30
@@ -1598,20 +1819,55 @@ FRAME play_menu_hud,72
  mov A2,[menu_pointer_y]
  call hud_text
 .no_cursor:
+ cmp qword [inventory+296],0
+ jne .tooltip_done
+ mov rax,[menu_hover]
+ test rax,rax
+ js .tooltip_done
+ call menu_record
+ movzx eax,word [r10]
+ test eax,eax
+ jz .tooltip_done
+ lea r10,[material_names]
+ movsxd rax,dword [r10+rax*4]
+ add rax,r10
+ mov [rsp+32],rax
+ mov rax,[menu_pointer_x]
+ add rax,16
+ mov ecx,480
+ cmp rax,rcx
+ cmova rax,rcx
+ mov [rsp+40],rax
+ cvtsi2ss xmm0,rax
+ movss [rect],xmm0
+ mov rax,[menu_pointer_y]
+ add rax,16
+ mov ecx,448
+ cmp rax,rcx
+ cmova rax,rcx
+ mov [rsp+48],rax
+ cvtsi2ss xmm0,rax
+ movss [rect+4],xmm0
+ mov dword [rect+8],__float32__(144.0)
+ mov dword [rect+12],__float32__(24.0)
+ call menu_white
+ mov dword [rect_color],__float32__(0.1)
+ mov dword [rect_color+4],__float32__(0.07)
+ mov dword [rect_color+8],__float32__(0.15)
+ call hud_rect
+ call menu_white
+ mov A0,[rsp+32]
+ mov A1,[rsp+40]
+ add A1,4
+ mov A2,[rsp+48]
+ add A2,5
+ call hud_text
+.tooltip_done:
  mov qword [hud_virtual],0
  xor eax,eax
 END_FRAME play_menu_hud,72
-FRAME play_hud,72
- mov qword [hud_count],0
- mov dword [rect_uv],0xbf800000
- mov dword [rect_uv+4],0xbf800000
- mov dword [rect_uv+8],0xbf800000
- mov dword [rect_uv+12],0xbf800000
- mov dword [rect_color],0x3f800000
- mov dword [rect_color+4],0x3f800000
- mov dword [rect_color+8],0x3f800000
- cmp qword [menu_open],0
- jne .menu_only
+FRAME hud_fps,40
+ call menu_white
  lea A0,[fps_text]
  mov eax,[screen_width]
  sub eax,108
@@ -1633,6 +1889,20 @@ FRAME play_hud,72
  sub eax,24
  mov A2,rax
  call hud_text
+ xor eax,eax
+END_FRAME hud_fps,40
+FRAME play_hud,72
+ mov qword [hud_count],0
+ mov dword [rect_uv],0xbf800000
+ mov dword [rect_uv+4],0xbf800000
+ mov dword [rect_uv+8],0xbf800000
+ mov dword [rect_uv+12],0xbf800000
+ mov dword [rect_color],0x3f800000
+ mov dword [rect_color+4],0x3f800000
+ mov dword [rect_color+8],0x3f800000
+ cmp qword [menu_open],0
+ jne .menu_only
+ call hud_fps
  lea A0,[controls_2]
  mov A1,12
  mov eax,[screen_height]
@@ -1837,6 +2107,7 @@ FRAME play_hud,72
  je .upload
 .menu_only:
  call play_menu_hud
+ call hud_fps
 .upload:
  mov A0,0x8892
  mov r10d,[hud_pair+4]
@@ -2030,7 +2301,7 @@ FRAME play_save,56
 END_FRAME play_save,56
 FRAME play_load,40
  lea A1,[save_buffer]
- mov A2,262576
+ mov A2,262608
  call file_load
  test rax,rax
  js .fail
@@ -2094,6 +2365,12 @@ load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
 cursor_full_text: db 'PLACE HELD ITEMS BEFORE CLOSING',0
 fps_text: db 'FPS',0
 menu_tip: db 'TAB RECIPES - E OR ESC CLOSE',0
+book_button_label: db 'RECIPES',0
+grid_label: db 'CRAFTING',0
+storage_label: db 'STORAGE',0
+fill_wood_label: db 'FILL WOOD',0
+fill_sticks_label: db 'FILL STICKS',0
+clear_grid_label: db 'CLEAR GRID',0
 menu_title: db 'INVENTORY',0
 menu_help: db 'LEFT MOVE RIGHT SPLIT SHIFT QUICK TAB RECIPES',0
 menu_items: db 'STORAGE - HOTBAR BELOW',0
@@ -2121,8 +2398,8 @@ bag_full_text: db 'INVENTORY FULL - BLOCK PRESERVED',0
 tool_needed_text: db 'STONE NEEDS A PICKAXE',0
 collected_text: db 'COLLECTED',0
 empty_name: db 'EMPTY',0
-planks_name: db 'PLANKS - CRAFTING INGREDIENT',0
-sticks_name: db 'STICKS - CRAFTING INGREDIENT',0
+planks_name: db 'PLANKS',0
+sticks_name: db 'STICKS',0
 wood_pick_name: db 'WOOD PICK',0
 stone_pick_name: db 'STONE PICK',0
 item_tiles: db 0,1,2,3,4,5,6,0,10,11,12,13
@@ -2155,7 +2432,7 @@ lens: dd 1.333333333,1.428148007
 digit_text: db '1',0
 number_text: times 4 db 0
 align 8
-save_target: dq 0,262576
+save_target: dq 0,262608
 load_bundle: dq 0,0
 section .bss align=16
 gl: resq GL_PROC_COUNT
@@ -2192,12 +2469,15 @@ frame_stats: resq 3
 menu_open: resq 1
 menu_drag_slot: resq 1
 menu_page: resq 1
+menu_result: resq 1
+menu_hover: resq 1
+menu_metrics: resd 3
 menu_pointer_x: resq 1
 menu_pointer_y: resq 1
 hud_virtual: resq 1
 captured: resq 1
-inventory: resb 304
-pending_inventory: resb 304
+inventory: resb 336
+pending_inventory: resb 336
 mining_time: resq 1
 mining_required: resq 1
 mining_target: resq 4
@@ -2206,6 +2486,6 @@ hit: resb 72
 ray: resb 56
 eye: resd 3
 status: resq 1
-save_buffer: resb 262576
+save_buffer: resb 262608
 diagnostic: resb 2048
 ELF_STACK

@@ -32,12 +32,12 @@ validated and marked complete.
 - [x] Keep item ID/count/durability/reserved validation and resource stack64.
       Tools remain individual records with their own wear.
 - [x] Introduce persisted cursor-held records.
-- [ ] Introduce persisted crafting-grid records. They must have
+- [x] Introduce persisted player 2×2 crafting-grid records. They must have
       defined ownership, be included in saves, and never silently disappear.
 - [x] Define left-click pickup/place/swap; right-click pickup half rounded up or
       place one; compatible-stack merging; and Shift-click destination order.
       Every operation validates before writing and conserves all item counts.
-- [ ] Crafting previews do not consume ingredients. Taking the result consumes
+- [x] Player 2×2 crafting previews do not consume ingredients. Taking the result consumes
       one recipe batch and creates output only if the cursor/destination fits.
 - [x] Closing a menu, losing focus, saving, loading, or changing crafting-table
       context must preserve cursor/grid items. If returning items cannot fit,
@@ -48,6 +48,9 @@ validated and marked complete.
 - [x] Test conservation through random interaction sequences under both ABIs,
       especially partial stacks, full bags, split tools, result capacity, and
       closing/reloading with cursor/grid contents.
+
+Player 2×2 log/plank/stick crafting and format4 migration are implemented; see
+[inventory crafting milestone](inventory-crafting-milestone.md). Table contexts remain pending.
 
 ## 2. Shaped crafting and usable crafting tables
 

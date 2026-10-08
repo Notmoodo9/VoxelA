@@ -48,32 +48,36 @@ SDL_PollEvent:
  cmp r10,1
  je .inventory
  cmp r10,2
- je .tab
+ je .grid_fill
  cmp r10,3
- je .planks
+ je .grid_clear
  cmp r10,4
- je .planks
+ je .tab
  cmp r10,5
- je .sticks
+ je .planks
  cmp r10,6
- je .pickaxe
+ je .planks
  cmp r10,7
- je .inventory
+ je .sticks
  cmp r10,8
- je .select_tool
+ je .pickaxe
  cmp r10,9
- je .aim
+ je .inventory
  cmp r10,10
- je .break
+ je .select_tool
  cmp r10,11
- je .finish_save
+ je .aim
  cmp r10,12
- je .load
+ je .break
  cmp r10,13
- je .pause
+ je .finish_save
  cmp r10,14
- je .resume
+ je .load
  cmp r10,15
+ je .pause
+ cmp r10,16
+ je .resume
+ cmp r10,17
  je .quit
  xor eax,eax
  ret
@@ -94,6 +98,18 @@ SDL_PollEvent:
  inc qword [phase]
  mov eax,1
  ret
+.grid_fill:
+ call .clear
+ mov dword [rdi],0x401
+ mov byte [rdi+16],1
+ mov dword [rdi+20],225 ; virtual180
+ mov dword [rdi+24],172 ; virtual342
+ inc qword [phase]
+ mov eax,1
+ ret
+.grid_clear:
+ mov r11d,8 ; Backspace returns ingredients before old recipe progression
+ jmp .craft_key
 .tab:
  mov r11d,9
  jmp .craft_key

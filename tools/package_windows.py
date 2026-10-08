@@ -70,6 +70,8 @@ def package(viewer, headless, dll_dir, system_dir, license_dir, output, objdump,
             'Mouse: look; hold left to mine, right place; 1-9: select slot.\n'
             'WASD: walk; Space: jump; Left Shift: sprint.\n'
             'E: inventory/recipe menu; click green recipes to craft; left/drag moves, right splits, Shift-click transfers.\n'
+            '2x2 grid: wood -> planks, vertical planks -> sticks; Shift-output repeats; Backspace clears grid.\n'
+            'Double-click gathers; hover +1-9 swaps; wheel selects; Creative middle-click picks aimed block.\n'
             '9 hotbar +27 storage; Tab toggles recipes. E closes/resumes; Escape closes/pauses; click: resume; F10: exit.\n'
             'F4: toggle Survival/Creative; F5: save all gameplay; F9: load voxela-world.vxa.\n'
             'Saving/loading is manual; closing does not automatically save.\n'

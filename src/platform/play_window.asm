@@ -8,6 +8,8 @@ extern SDL_GetModState, SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern play_scroll, play_copy_block, play_menu_number, play_menu_clear
+extern inventory_ui_pointer
 extern play_frame_time
 extern play_menu_action, play_menu_release, play_menu_pointer, play_menu_tab
 extern play_menu, play_menu_open, play_menu_click
@@ -206,6 +208,8 @@ FRAME main,120
  mov byte [menu_event_mode],1
  jmp .menu_position
 .button:
+ cmp dword [event],0x403
+ je .wheel
  cmp dword [event],0x402
  jne .button_down
  cmp byte [event+16],1
@@ -247,6 +251,13 @@ FRAME main,120
  jne .loop
  mov byte [menu_action],1
 .menu_modifiers:
+ cmp byte [event+16],1
+ jne .shift_modifiers
+ cmp byte [event+18],2
+ jne .shift_modifiers
+ mov byte [menu_action],3
+ jmp .menu_click_position
+.shift_modifiers:
  call SDL_GetModState
  test eax,3
  jz .menu_click_position
@@ -258,33 +269,17 @@ FRAME main,120
  lea A1,[input_width]
  lea A2,[input_height]
  call SDL_GetWindowSize
- cmp dword [input_width],0
- jle .loop
- cmp dword [input_height],0
- jle .loop
- movsxd rax,dword [event+20]
+ lea A0,[input_width]
+ movsxd r10,dword [event+20]
+ mov A1,r10
+ movsxd r10,dword [event+24]
+ mov A2,r10
+ lea A3,[menu_x]
+ call inventory_ui_pointer
  test rax,rax
- js .loop
- imul rax,640
- xor edx,edx
- mov ecx,[input_width]
- div rcx
- mov [menu_x],rax
- movsxd rax,dword [event+24]
- test rax,rax
- js .loop
- mov ecx,[input_height]
- dec ecx
- sub rcx,rax
- js .loop
- mov rax,rcx
- imul rax,480
- xor edx,edx
- mov ecx,[input_height]
- div rcx
- mov [menu_y],rax
- mov A1,rax
+ jnz .loop
  mov A0,[menu_x]
+ mov A1,[menu_y]
  call play_menu_pointer
  cmp byte [menu_event_mode],1
  je .loop
@@ -302,6 +297,8 @@ FRAME main,120
 .edit_button:
  cmp byte [event+16],1
  je .break
+ cmp byte [event+16],2
+ je .copy_block
  cmp byte [event+16],3
  jne .loop
  mov byte [click_action],1
@@ -311,6 +308,21 @@ FRAME main,120
  jmp .loop
 .pending:
  mov byte [click_pending],1
+ jmp .loop
+.wheel:
+ cmp byte [mouse_captured],0
+ je .loop
+ movsxd r10,dword [event+20]
+ cmp dword [event+24],1
+ jne .wheel_direction
+ neg r10
+.wheel_direction:
+ mov A0,r10
+ call play_scroll
+ jmp .loop
+.copy_block:
+ call play_pick
+ call play_copy_block
  jmp .loop
 .keyboard:
  cmp dword [event],0x300
@@ -325,6 +337,8 @@ FRAME main,120
  je .inventory
  cmp dword [event+20],9
  je .inventory_tab
+ cmp dword [event+20],8
+ je .grid_clear
  cmp dword [event+20],1073741885
  je .mode
  cmp dword [event+20],1073741886
@@ -343,9 +357,21 @@ FRAME main,120
  sub eax,49
  cmp eax,8
  ja .loop
+ mov [menu_number],rax
+ call play_menu_open
+ test rax,rax
+ jnz .number_swap
+ mov rax,[menu_number]
  inc eax
  mov A0,rax
  call play_select
+ jmp .loop
+.number_swap:
+ mov A0,[menu_number]
+ call play_menu_number
+ jmp .loop
+.grid_clear:
+ call play_menu_clear
  jmp .loop
 .inventory_tab:
  call play_menu_tab
@@ -673,6 +699,7 @@ mining_held: resb 1
 inventory_state: resb 304
 input_width: resd 1
 input_height: resd 1
+menu_number: resq 1
 menu_x: resq 1
 menu_y: resq 1
 menu_event_mode: resb 1
