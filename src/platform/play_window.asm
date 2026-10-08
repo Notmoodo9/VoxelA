@@ -7,6 +7,7 @@ extern SDL_SetRelativeMouseMode, SDL_GetKeyboardState, SDL_GL_SwapWindow
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern play_mine, play_mode, play_craft, play_get_inventory
 extern play_pick, play_apply, play_select, play_set_capture, play_save, play_load, play_seed
 FRAME main,120
  mov qword [rsp+64],0
@@ -195,6 +196,16 @@ FRAME main,120
  jnz .pixel_error
  jmp .loop
 .button:
+ cmp dword [event],0x402
+ jne .button_down
+ cmp byte [event+16],1
+ jne .loop
+ mov byte [mining_held],0
+ xor A0,A0
+ xor A1,A1
+ call play_mine
+ jmp .loop
+.button_down:
  cmp dword [event],0x401
  jne .keyboard
  cmp byte [mouse_captured],0
@@ -217,7 +228,8 @@ FRAME main,120
  mov byte [click_action],1
  jmp .pending
 .break:
- mov byte [click_action],0
+ mov byte [mining_held],1
+ jmp .loop
 .pending:
  mov byte [click_pending],1
  jmp .loop
@@ -230,19 +242,50 @@ FRAME main,120
  je .success
  cmp dword [event+20],27
  je .release
+ cmp dword [event+20],1073741885
+ je .mode
  cmp dword [event+20],1073741886
  je .save
  cmp dword [event+20],1073741890
  je .load
  mov eax,[event+20]
+ cmp eax,122
+ je .planks
+ cmp eax,120
+ je .sticks
+ cmp eax,99
+ je .wood_pick
+ cmp eax,118
+ je .stone_pick
  sub eax,49
- cmp eax,5
+ cmp eax,8
  ja .loop
  inc eax
  mov A0,rax
  call play_select
  jmp .loop
+.mode:
+ lea A0,[inventory_state]
+ call play_get_inventory
+ mov eax,[inventory_state+76]
+ xor eax,1
+ mov A0,rax
+ call play_mode
+ mov byte [mining_held],0
+ jmp .loop
+.planks: xor A0,A0
+ jmp .craft
+.sticks: mov A0,1
+ jmp .craft
+.wood_pick: mov A0,2
+ jmp .craft
+.stone_pick: mov A0,3
+.craft:
+ call play_craft
+ mov byte [mining_held],0
+ jmp .loop
 .release:
+ mov byte [mining_held],0
  mov byte [mouse_captured],0
  mov byte [click_pending],0
  xor A0,A0
@@ -268,6 +311,7 @@ FRAME main,120
  test rax,rax
  jnz .load_failed
  mov byte [click_pending],0
+ mov byte [mining_held],0
  lea A0,[load_pass]
  call puts
  jmp .loop
@@ -312,6 +356,13 @@ FRAME main,120
  call play_pick
  cmp rax,-1
  je .pixel_error
+ movzx eax,byte [mining_held]
+ mov A0,rax
+ mov r10d,[elapsed]
+ mov A1,r10
+ call play_mine
+ test rax,rax
+ js .mining_error
  cmp byte [click_pending],0
  je .view_size
  mov byte [click_pending],0
@@ -320,6 +371,7 @@ FRAME main,120
  call play_apply
  test rax,rax
  jns .view_size
+.mining_error:
  lea A0,[edit_fail]
  call puts
 .view_size:
@@ -459,8 +511,8 @@ startup_fail: db 'SDL/OpenGL startup failed (OpenGL 3.3 and relative mouse requi
 pixel_fail: db 'FAIL: first-person renderer frame/readback',0
 smoke_pass: db 'PASS: first-person terrain textures and HUD, three OpenGL frames and terrain readback',0
 save_path: db 'voxela-world.vxa',0
-save_pass: db 'Saved player and streamed edits to voxela-world.vxa.',0
-load_pass: db 'Loaded player and streamed edits from voxela-world.vxa.',0
+save_pass: db 'Saved player and streamed edits and inventory to voxela-world.vxa.',0
+load_pass: db 'Loaded player and streamed edits and inventory from voxela-world.vxa.',0
 save_fail: db 'Save failed or durability uncertain. Current edits retained; check directory and .tmp file.',0
 load_fail: db 'Load failed: missing, corrupt, incompatible seed, or unsafe player pose. World preserved.',0
 edit_fail: db 'Edit refused: unavailable terrain or full bounded edit journal. Save and inspect limits.',0
@@ -488,4 +540,6 @@ focused: resb 1
 mouse_captured: resb 1
 click_pending: resb 1
 click_action: resb 1
+mining_held: resb 1
+inventory_state: resb 80
 ELF_STACK

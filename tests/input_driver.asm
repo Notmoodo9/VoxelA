@@ -23,6 +23,14 @@ SDL_GetKeyboardState:
  mov byte [keys+26],1 ; W
  mov byte [keys+225],1 ; Shift
  mov byte [keys+44],0
+ cmp qword [frames],20
+ jb .moving
+ cmp qword [frames],180
+ jae .moving
+ mov byte [keys+26],0
+ mov byte [keys+225],0
+ jmp .return
+.moving:
  mov rax,[frames]
  xor edx,edx
  mov ecx,100
@@ -38,18 +46,28 @@ SDL_PollEvent:
  test r10,r10
  jz .initial_save
  cmp r10,1
- je .aim
+ je .planks
  cmp r10,2
- je .break
+ je .planks
  cmp r10,3
- je .finish_save
+ je .sticks
  cmp r10,4
- je .load
+ je .pickaxe
  cmp r10,5
- je .pause
+ je .select_tool
  cmp r10,6
- je .resume
+ je .aim
  cmp r10,7
+ je .break
+ cmp r10,8
+ je .finish_save
+ cmp r10,9
+ je .load
+ cmp r10,10
+ je .pause
+ cmp r10,11
+ je .resume
+ cmp r10,12
  je .quit
  xor eax,eax
  ret
@@ -67,6 +85,24 @@ SDL_PollEvent:
  call .clear
  mov dword [rdi],0x300
  mov dword [rdi+20],1073741886
+ inc qword [phase]
+ mov eax,1
+ ret
+.planks:
+ mov r11d,122
+ jmp .craft_key
+.sticks:
+ mov r11d,120
+ jmp .craft_key
+.pickaxe:
+ mov r11d,99
+ jmp .craft_key
+.select_tool:
+ mov r11d,53
+.craft_key:
+ call .clear
+ mov dword [rdi],0x300
+ mov [rdi+20],r11d
  inc qword [phase]
  mov eax,1
  ret

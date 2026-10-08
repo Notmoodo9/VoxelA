@@ -18,6 +18,15 @@ for y in range(16):
    if tile==1 and (x+y*3)%13==0:noise=-35
    if tile==4:noise=rng.randrange(-8,9)
    alpha=0 if tile==6 and rng.randrange(7)==0 else 255
+   if tile==10:
+    rgb=(167,119,68);noise=-24 if y%4==0 else (x%3)*3
+   if tile>=11 and tile<=13:
+    # Original transparent stick and two pickaxe icons; no borrowed assets.
+    handle=(x+y in range(14,18) and 3<=x<=12 and 3<=y<=12)
+    head=(tile>=12 and 3<=x<=13 and 10<=y<=13)
+    alpha=255 if handle or head else 0
+    rgb=((145,96,45) if tile==12 else (135,139,145)) if head else (150,101,52)
+    noise=0
    data.extend([max(0,min(255,c+noise)) for c in rgb]+[alpha])
 (root/'assets/textures/blocks.rgba').write_bytes(data)
 def chunk(t,d):return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)

@@ -17,6 +17,7 @@ getproc=bind(sdl,'SDL_GL_GetProcAddress',[C.c_char_p],C.c_void_p)
 start=bind(engine,'play_init',[]);draw=bind(engine,'play_draw',[]);stop=bind(engine,'play_shutdown',[])
 look=bind(engine,'play_look',[C.c_int64,C.c_int64]);step=bind(engine,'play_step',[C.c_uint64,C.c_uint64]);resize=bind(engine,'play_resize',[C.c_uint64,C.c_uint64])
 getplayer=bind(engine,'play_get_player',[C.c_void_p]);pick=bind(engine,'play_pick',[]);hit=bind(engine,'play_get_hit',[C.c_void_p]);select=bind(engine,'play_select',[C.c_uint64]);apply=bind(engine,'play_apply',[C.c_uint64]);edit=bind(engine,'play_edit_cell',[C.c_void_p,C.c_uint64]);get=bind(engine,'play_get_block',[C.c_void_p])
+mine=bind(engine,'play_mine',[C.c_uint64,C.c_uint64]);mode=bind(engine,'play_mode',[C.c_uint64]);craft=bind(engine,'play_craft',[C.c_uint64]);getinventory=bind(engine,'play_get_inventory',[C.c_void_p])
 save=bind(engine,'play_save',[C.c_char_p]);load=bind(engine,'play_load',[C.c_char_p]);capturemode=bind(engine,'play_set_capture',[C.c_uint64]);setseed=bind(engine,'play_seed',[C.c_uint64]);height=bind(engine,'terrain_height',[C.c_uint64,C.c_int64,C.c_int64])
 def gl(n,args,result=None):return C.CFUNCTYPE(result,*args)(getproc(n.encode()))
 def png(path,data):
@@ -53,21 +54,62 @@ try:
  assert look(0,200)==0 and pick()==1,'five-block aim ray'
  h=(C.c_int64*9)();assert hit(h)==1
  cell=(C.c_int64*3)(*h[:3]);original=h[8]
- assert apply(0)==1 and get(cell)==0,'aimed removal'
+ inv=(C.c_ubyte*80)();assert getinventory(inv)==0
+ assert struct.unpack_from('<HH',inv,0)==(2,32)
+ assert original in [2,3,4,6],original
+ # Hold duration and release reset are tested through the real renderer API.
+ assert mine(2,100)==-1
+ assert mine(1,100)==0 and get(cell)==original
+ progress=capture();assert progress!=image,'mining progress HUD'
+ assert mine(0,0)==0
+ required={2:350,3:350,4:300,6:150}[original]
+ for elapsed_ms in range(0,required-100,100):assert mine(1,100)==0 and get(cell)==original
+ remaining=required-((required-101)//100+1)*100
+ assert mine(1,max(remaining,1))==1 and get(cell)==0,'hold-to-mine completion'
+ assert getinventory(inv)==0
+ assert struct.unpack_from('<HH',inv,0)==(2,33),'grass dirt pickup'
  removed=capture();assert removed!=image
  assert edit(cell,original)==1 and get(cell)==original
  assert getplayer(pose)==0
  feet=C.cast(pose,C.POINTER(C.c_double))
  body=(C.c_int64*3)(int(feet[0]//1),int(feet[1]//1),int(feet[2]//1))
  assert edit(body,1)==0,'player suffocating placement accepted'
- assert select(0)==-1 and select(7)==-1 and select(5)==0
+ assert select(0)==-1 and select(10)==-1 and select(9)==0
+ assert mode(2)==-1 and mode(1)==0
+ assert getinventory(inv)==0;creative_slots=bytes(inv)[:72]
+ assert pick()==1 and apply(0)==1 and getinventory(inv)==0
+ assert bytes(inv)[:72]==creative_slots,'creative changed inventory'
+ assert edit(cell,original)==1 and mode(0)==0 and select(1)==0
+ assert pick()==1 and hit(h)==1
+ placed=(C.c_int64*3)(*h[5:8])
+ assert get(placed)==0 and apply(1)==1 and get(placed)==2,'inventory placement'
+ assert getinventory(inv)==0 and struct.unpack_from('<H',inv,2)[0]==32,'placement did not consume'
+ assert edit(placed,0)==1
+ assert craft(0)==1 and craft(0)==1 and craft(1)==1 and craft(2)==1
+ assert getinventory(inv)==0
+ slots=[struct.unpack_from('<HHHH',inv,i*8) for i in range(9)]
+ tool_slot=next(i for i,slot in enumerate(slots) if slot[0]==10)
+ assert select(tool_slot+1)==0 and pick()==1
+ assert edit(cell,1)==1 and pick()==1
+ for _ in range(7):assert mine(1,100)==0 and get(cell)==1
+ assert mine(1,100)==1 and get(cell)==0,'pickaxe mining'
+ assert getinventory(inv)==0 and struct.unpack_from('<H',inv,tool_slot*8+4)[0]==59,'tool durability'
+ assert edit(cell,original)==1
+ assert select(9)==0 and pick()==1
+ assert edit(cell,1)==1 and pick()==1
+ assert mine(1,100)==0 and get(cell)==1,'bare-hand stone mining accepted'
+ assert edit(cell,original)==1
+ assert select(tool_slot+1)==0
+
  with tempfile.TemporaryDirectory(prefix='VoxelA player save ') as folder:
   path=Path(folder)/'world.vxa';encoded=str(path).encode()
   assert edit(cell,0)==1 and save(encoded)==0
+  assert getinventory(inv)==0;persisted_inventory=bytes(inv)
   assert getplayer(pose)==0;persisted=bytes(pose)[:32]
   assert step(8,100)==0 and look(200,40)==0
   assert stop()==0 and start()==0
   assert load(encoded)==0 and get(cell)==0
+  assert getinventory(inv)==0 and bytes(inv)==persisted_inventory,'inventory/tools/mode not restored'
   assert getplayer(pose)==0 and bytes(pose)[:32]==persisted,'player pose not restored'
   loaded=capture()
   path.write_bytes(b'invalid')
@@ -76,6 +118,50 @@ try:
   assert capture()!=loaded
   path.unlink()
   assert save(str(Path(folder)/'missing'/'world.vxa').encode())==-1
+  # Full bags refuse the world edit and retain tool durability. A final-use
+  # tool can free its own slot for the pickup, without duplicating either.
+  assert edit(cell,original)==1 and save(encoded)==0
+  baseline=bytearray(path.read_bytes())
+  def install_inventory(slots,selected=0):
+   data=bytearray(baseline)
+   data[-80:]=b''.join(struct.pack('<HHHH',*slot) for slot in slots)+struct.pack('<II',selected,0)
+   checksum=0xcbf29ce484222325
+   for i,b in enumerate(data):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
+   struct.pack_into('<Q',data,40,checksum);path.write_bytes(data)
+   assert load(encoded)==0 and pick()==1
+  full=[[10,1,5,0]]+[[8,64,0,0] for _ in range(8)]
+  install_inventory(full)
+  assert getinventory(inv)==0;before_inventory=bytes(inv)
+  for _ in range(4):assert mine(1,100)==0
+  assert get(cell)==original and getinventory(inv)==0 and bytes(inv)==before_inventory,'full bag consumed terrain or tool'
+  install_inventory([[10,1,1,0]]+[[8,64,0,0] for _ in range(8)])
+  assert edit(cell,1)==1 and pick()==1
+  for _ in range(7):assert mine(1,100)==0
+  assert mine(1,100)==1 and get(cell)==0 and getinventory(inv)==0
+  assert struct.unpack_from('<HHHH',inv,0)==(1,1,0,0),'last-use tool pickup transaction'
+  assert edit(cell,original)==1
+  # Inventory staging must also roll back when the world journal is full.
+  maximum=bytearray(baseline[:128])
+  struct.pack_into('<I',maximum,20,8192);struct.pack_into('<Q',maximum,32,8192*32+80)
+  for i in range(8192):maximum.extend(struct.pack('<qqqQ',i%128,100,i//128,5))
+  maximum.extend(struct.pack('<HHHH',2,32,0,0)+struct.pack('<HHHH',5,8,0,0)+bytes(56)+struct.pack('<II',0,0))
+  checksum=0xcbf29ce484222325
+  for i,b in enumerate(maximum):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
+  struct.pack_into('<Q',maximum,40,checksum);path.write_bytes(maximum)
+  assert load(encoded)==0 and pick()==1 and getinventory(inv)==0
+  before_inventory=bytes(inv)
+  for _ in range(3):assert mine(1,100)==0
+  assert mine(1,50)==-2 and get(cell)==original and getinventory(inv)==0
+  assert bytes(inv)==before_inventory,'failed terrain edit consumed inventory'
+  # Inventory reset on a successful legacy load, without requiring a new world.
+  legacy=bytearray(baseline[:-80]);struct.pack_into('<I',legacy,8,1)
+  struct.pack_into('<Q',legacy,32,len(legacy)-128);struct.pack_into('<Q',legacy,96,0)
+  checksum=0xcbf29ce484222325
+  for i,b in enumerate(legacy):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
+  struct.pack_into('<Q',legacy,40,checksum);path.write_bytes(legacy)
+  assert load(encoded)==0 and getinventory(inv)==0
+  assert struct.unpack_from('<HHHH',inv,0)==(2,32,0,0),'legacy gameplay migration'
+  assert mode(1)==0 and save(encoded)==0
   # Large coordinates exercise the actual rebased GPU path, not only CPU math.
   assert save(encoded)==0
   distant=bytearray(path.read_bytes())
@@ -97,7 +183,7 @@ try:
  assert C.cast(pose,C.POINTER(C.c_double))[1]==height(43,0,0)+1,'configured seed spawn'
  capture();assert stop()==0 and setseed(42)==0
  if len(sys.argv)>2:png(sys.argv[2],image)
- print('PASS: first-person perspective, original texture atlas, HUD, walking, mouse look, collision-safe edits, saved player/world restart and idempotent GL cleanup')
+ print('PASS: first-person perspective, original texture atlas, HUD, walking, mouse look, collision-safe edits, finite inventory, timed mining, tool wear, crafting, Creative, saved gameplay restart and idempotent GL cleanup')
 finally:
  if ctx:stop();delcontext(ctx)
  if w:delwindow(w)

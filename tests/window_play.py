@@ -19,8 +19,14 @@ with tempfile.TemporaryDirectory(prefix='VoxelA actual player ') as folder:
  assert z<-16,(x,y,z,'did not cross a chunk boundary')
  count=struct.unpack_from('<I',data,20)[0]
  assert count>0,'mouse breaking did not record an edit'
+ assert struct.unpack_from('<I',data,8)[0]==2,'old gameplay format'
+ inventory=data[128+count*32:]
+ assert len(inventory)==80 and struct.unpack_from('<II',inventory,72)==(4,0),'selected tool/mode persistence'
+ tool=struct.unpack_from('<HHHH',inventory,32)
+ assert tool[0:2]==(10,1) and 1<=tool[2]<60,('crafting/tool wear not dispatched',tool)
+ assert struct.unpack_from('<H',inventory,2)[0]>32,'mined dirt not collected'
  value=0xcbf29ce484222325
  for i,b in enumerate(data):value=((value^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
  assert value==struct.unpack_from('<Q',data,40)[0]
  assert not (Path(folder)/'voxela-world.vxa.tmp').exists()
- print(f'PASS: actual SDL player loop, mouse look/break, walking/jumping across chunks (Z={z:.2f}), {count} persisted edits, F5/F9, Escape pause, click resume and F10 exit')
+ print(f'PASS: actual SDL player loop, crafting hotkeys, finite pickups/tool wear, held-mouse mining, walking/jumping across chunks (Z={z:.2f}), {count} persisted edits, F5/F9, Escape pause, click resume and F10 exit')

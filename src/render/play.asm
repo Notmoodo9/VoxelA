@@ -1,12 +1,14 @@
 %include "abi.inc"
 %include "gl.inc"
 %include "stream.inc"
+%include "inventory.inc"
 section .text
 extern SDL_GL_GetProcAddress, puts
 extern stream_init, stream_recenter, stream_get, stream_edit, terrain_height
 extern player_init, player_step, player_look, player_resize, player_ray, player_overlaps_cell
 extern world_raycast, cache_find, mesh_build, faces_expand
-extern walk_encode, walk_decode, file_save, file_load
+extern game_encode, game_decode, file_save, file_load
+extern inventory_init, inventory_add, inventory_craft, inventory_consume, inventory_wear, mine_duration
 FRAME compile_play_shader,72
  mov [rsp+48],A1
  GLCALL glCreateShader
@@ -95,6 +97,12 @@ play_seed:
  xor eax,eax
  ret
 FRAME play_init,120
+ lea r10,[save_buffer]
+ mov [save_target],r10
+ lea r10,[player]
+ mov [load_bundle],r10
+ lea r10,[inventory]
+ mov [load_bundle+8],r10
  mov qword [rsp+80],0
 .load:
  mov r10,[rsp+80]
@@ -245,7 +253,10 @@ FRAME play_init,120
  js .fail
  mov dword [screen_width],800
  mov dword [screen_height],600
- mov qword [selected],1
+ lea A0,[inventory]
+ call inventory_init
+ mov qword [mining_time],0
+ mov qword [mining_required],0
  mov qword [selection_valid],0
  mov qword [captured],1
  lea r10,[ready_text]
@@ -263,6 +274,12 @@ FRAME play_init,120
 .fail: mov rax,-1
 .done:
 END_FRAME play_init,120
+ lea r10,[save_buffer]
+ mov [save_target],r10
+ lea r10,[player]
+ mov [load_bundle],r10
+ lea r10,[inventory]
+ mov [load_bundle+8],r10
 ; All mesh coordinates are relative to current stream center, avoiding float loss.
 FRAME play_rebuild,136
  mov qword [vertex_count],0
@@ -508,6 +525,8 @@ play_get_player:
 global play_set_capture
 play_set_capture:
  mov [captured],A0
+ mov qword [mining_time],0
+ mov qword [mining_required],0
  xor eax,eax
  ret
 FRAME play_pick,56
@@ -596,17 +615,85 @@ play_get_hit:
  ret
 .none: xor eax,eax
  ret
+global play_selected_item
+play_selected_item:
+ mov eax,[inventory+72]
+ cmp dword [inventory+76],1
+ je .creative
+ lea r10,[inventory]
+ movzx eax,word [r10+rax*8]
+ ret
+.creative:
+ cmp eax,6
+ jae .empty
+ inc eax
+ ret
+.empty: xor eax,eax
+ ret
 global play_select
 play_select:
  cmp A0,1
  jb .bad
- cmp A0,6
+ cmp A0,9
  ja .bad
- mov [selected],A0
+ mov rax,A0
+ dec eax
+ mov [inventory+72],eax
+ mov qword [mining_time],0
+ mov qword [mining_required],0
  xor eax,eax
  ret
 .bad: mov rax,-1
  ret
+global play_mode
+play_mode:
+ cmp A0,1
+ ja .bad
+ mov rax,A0
+ mov [inventory+76],eax
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ lea r10,[survival_text]
+ test A0,A0
+ jz .status
+ lea r10,[creative_text]
+.status: mov [status],r10
+ xor eax,eax
+ ret
+.bad: mov rax,-1
+ ret
+global play_get_inventory
+play_get_inventory:
+ mov r10,A0
+ lea r11,[inventory]
+ xor ecx,ecx
+.copy:
+ mov rax,[r11+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,80
+ jb .copy
+ xor eax,eax
+ ret
+FRAME play_craft,40
+ cmp dword [inventory+76],1
+ je .rejected
+ mov A1,A0
+ lea A0,[inventory]
+ call inventory_craft
+ cmp rax,1
+ jne .rejected
+ lea r10,[crafted_text]
+ mov [status],r10
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ jmp .done
+.rejected:
+ lea r10,[craft_failed_text]
+ mov [status],r10
+ xor eax,eax
+.done:
+END_FRAME play_craft,40
 FRAME play_get_block,40
  mov A1,A0
  lea A0,[world]
@@ -648,6 +735,54 @@ FRAME play_apply,56
  jnz .place
  cmp qword [hit+64],7
  je .rejected
+ cmp dword [inventory+76],1
+ je .break_creative
+ lea A0,[inventory]
+ mov A1,[hit+64]
+ call mine_duration
+ test rax,rax
+ js .need_tool
+ ; Stage pickup + tool wear before terrain mutation. Full bags refuse mining.
+ lea r10,[inventory]
+ lea r11,[pending_inventory]
+ xor ecx,ecx
+.copy:
+ mov rax,[r10+rcx]
+ mov [r11+rcx],rax
+ add ecx,8
+ cmp ecx,80
+ jb .copy
+ lea A0,[pending_inventory]
+ call inventory_wear
+ mov A1,[hit+64]
+ cmp A1,3
+ jne .drop
+ mov A1,2 ; Grass yields dirt, never itself.
+.drop:
+ lea A0,[pending_inventory]
+ mov A2,1
+ xor A3,A3
+ call inventory_add
+ cmp rax,1
+ jne .full
+ lea A0,[hit]
+ xor A1,A1
+ call play_edit_cell
+ cmp rax,1
+ jne .done
+ lea r10,[pending_inventory]
+ lea r11,[inventory]
+ xor ecx,ecx
+.commit:
+ mov r8,[r10+rcx]
+ mov [r11+rcx],r8
+ add ecx,8
+ cmp ecx,80
+ jb .commit
+ lea r10,[collected_text]
+ mov [status],r10
+ jmp .done
+.break_creative:
  lea A0,[hit]
  xor A1,A1
  call play_edit_cell
@@ -655,22 +790,111 @@ FRAME play_apply,56
 .place:
  cmp qword [hit+24],6
  jae .rejected
+ call play_selected_item
+ cmp rax,1
+ jb .rejected
+ cmp rax,6
+ ja .rejected
+ mov [rsp+32],rax
  lea A0,[hit+40]
  call play_get_block
  test rax,rax
  jnz .rejected
  lea A0,[hit+40]
- mov A1,[selected]
+ mov A1,[rsp+32]
  call play_edit_cell
+ cmp rax,1
+ jne .done
+ cmp dword [inventory+76],1
+ je .done
+ lea A0,[inventory]
+ call inventory_consume
  jmp .done
+.need_tool:
+ lea r10,[tool_needed_text]
+ mov [status],r10
+ jmp .rejected
+.full:
+ lea r10,[bag_full_text]
+ mov [status],r10
 .rejected: xor eax,eax
  jmp .done
 .bad: mov rax,-1
 .done:
 END_FRAME play_apply,56
+; Holding left mouse advances only one unchanged target; release, tool/slot
+; changes, pause, load and misses reset progress. Delta clamped like movement.
+FRAME play_mine,56
+ cmp A0,1
+ ja .bad
+ test A0,A0
+ jz .reset
+ cmp qword [selection_valid],0
+ je .reset
+ cmp qword [captured],0
+ je .reset
+ mov eax,100
+ cmp A1,rax
+ cmova A1,rax
+ mov [rsp+32],A1
+ lea A0,[inventory]
+ mov A1,[hit+64]
+ call mine_duration
+ test rax,rax
+ js .blocked
+ mov [mining_required],rax
+ lea r10,[hit]
+ lea r11,[mining_target]
+ xor ecx,ecx
+.compare:
+ mov rax,[r10+rcx]
+ cmp [r11+rcx],rax
+ jne .new_target
+ add ecx,8
+ cmp ecx,24
+ jb .compare
+ mov rax,[hit+64]
+ cmp rax,[mining_target+24]
+ je .advance
+.new_target:
+ mov qword [mining_time],0
+ mov rax,[hit]
+ mov [mining_target],rax
+ mov rax,[hit+8]
+ mov [mining_target+8],rax
+ mov rax,[hit+16]
+ mov [mining_target+16],rax
+ mov rax,[hit+64]
+ mov [mining_target+24],rax
+.advance:
+ mov rax,[rsp+32]
+ add [mining_time],rax
+ mov rax,[mining_time]
+ cmp rax,[mining_required]
+ jb .idle
+ xor A0,A0
+ call play_apply
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+ jmp .done
+.blocked:
+ cmp qword [hit+64],1
+ jne .reset
+ lea r10,[tool_needed_text]
+ mov [status],r10
+.reset:
+ mov qword [mining_time],0
+ mov qword [mining_required],0
+.idle: xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME play_mine,56
 ; HUD rectangles use pixels, converted to NDC at current drawable dimensions.
 ; Shared scratch rect[x,y,w,h], rect_color RGB, rect_uv[u0,v0,u1,v1].
 hud_rect:
+ cmp qword [hud_count],99994
+ ja .full
  mov rax,[hud_count]
  shl rax,5
  lea r10,[hud_vertices]
@@ -717,6 +941,7 @@ hud_rect:
  cmp ecx,6
  jb .vertex
  add qword [hud_count],6
+ .full:
  ret
 FRAME hud_text,88
  mov [rsp+32],A0
@@ -774,6 +999,28 @@ FRAME hud_text,88
  jmp .char
 .done:
 END_FRAME hud_text,88
+hud_number:
+ lea r10,[number_text+3]
+ mov byte [r10],0
+ mov ecx,10
+.loop:
+ xor edx,edx
+ div ecx
+ add dl,'0'
+ dec r10
+ mov [r10],dl
+ test eax,eax
+ jnz .loop
+ mov r11,r10
+ lea r10,[number_text]
+.copy:
+ mov al,[r11]
+ mov [r10],al
+ inc r10
+ inc r11
+ test al,al
+ jnz .copy
+ ret
 FRAME play_hud,72
  mov qword [hud_count],0
  mov dword [rect_uv],0xbf800000
@@ -801,14 +1048,14 @@ FRAME play_hud,72
  sub eax,64
  mov A2,rax
  call hud_text
- mov rax,[selected]
+ call play_selected_item
  lea r10,[material_names]
  movsxd rax,dword [r10+rax*4]
  add rax,r10
  mov A0,rax
  mov eax,[screen_width]
  shr eax,1
- sub eax,140
+ sub eax,212
  mov A1,rax
  mov A2,70
  call hud_text
@@ -847,12 +1094,56 @@ FRAME play_hud,72
  mov dword [rect+8],0x40000000
  mov dword [rect+12],0x41400000
  call hud_rect
+ lea A0,[recipes_text]
+ mov A1,12
+ mov eax,[screen_height]
+ sub eax,84
+ mov A2,rax
+ call hud_text
+ lea A0,[survival_text]
+ cmp dword [inventory+76],0
+ je .mode_label
+ lea A0,[creative_text]
+.mode_label:
+ mov A1,12
+ mov eax,[screen_height]
+ sub eax,104
+ mov A2,rax
+ call hud_text
+ cmp qword [mining_required],0
+ je .slots
+ mov eax,[screen_width]
+ shr eax,1
+ sub eax,50
+ cvtsi2ss xmm0,eax
+ movss [rect],xmm0
+ mov eax,[screen_height]
+ shr eax,1
+ sub eax,30
+ cvtsi2ss xmm0,eax
+ movss [rect+4],xmm0
+ mov dword [rect+8],0x42c80000
+ mov dword [rect+12],0x40800000
+ mov dword [rect_color],0x3e800000
+ mov dword [rect_color+4],0x3e800000
+ mov dword [rect_color+8],0x3e800000
+ call hud_rect
+ cvtsi2ss xmm0,qword [mining_time]
+ cvtsi2ss xmm1,qword [mining_required]
+ divss xmm0,xmm1
+ mulss xmm0,[hundred_float]
+ movss [rect+8],xmm0
+ mov dword [rect_color],0x3f800000
+ mov dword [rect_color+4],0x3f600000
+ mov dword [rect_color+8],0x3e000000
+ call hud_rect
+.slots:
  mov qword [rsp+32],1
 .slot:
  ; 40px slot with 32px textured icon, selected border gold.
  mov eax,[screen_width]
  shr eax,1
- sub eax,140
+ sub eax,212
  mov r10,[rsp+32]
  dec r10
  imul r10,48
@@ -866,8 +1157,9 @@ FRAME play_hud,72
  mov dword [rect_color],0x3e000000
  mov dword [rect_color+4],0x3e000000
  mov dword [rect_color+8],0x3e000000
- mov rax,[rsp+32]
- cmp rax,[selected]
+ mov eax,[inventory+72]
+ inc eax
+ cmp rax,[rsp+32]
  jne .border
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f600000
@@ -883,7 +1175,23 @@ FRAME play_hud,72
  mov dword [rect_color],0x3f800000
  mov dword [rect_color+4],0x3f800000
  mov dword [rect_color+8],0x3f800000
- cvtsi2ss xmm0,qword [rsp+32]
+ mov rax,[rsp+32]
+ dec rax
+ cmp dword [inventory+76],1
+ je .creative_icon
+ lea r10,[inventory]
+ movzx eax,word [r10+rax*8]
+ jmp .icon
+.creative_icon:
+ cmp rax,6
+ jae .empty_icon
+ inc eax
+.icon:
+ test eax,eax
+ jz .empty_icon
+ lea r10,[item_tiles]
+ movzx eax,byte [r10+rax]
+ cvtsi2ss xmm0,eax
  mulss xmm0,[tile_scale]
  addss xmm0,[half_texel_u]
  movss [rect_uv],xmm0
@@ -894,6 +1202,7 @@ FRAME play_hud,72
  movss xmm0,[v_max]
  movss [rect_uv+12],xmm0
  call hud_rect
+.empty_icon:
  mov dword [rect_uv],0xbf800000
  mov dword [rect_uv+4],0xbf800000
  mov dword [rect_uv+8],0xbf800000
@@ -906,8 +1215,30 @@ FRAME play_hud,72
  add A1,4
  mov A2,52
  call hud_text
+ ; Count labels below icons; tool counts show remaining durability instead.
+ cmp dword [inventory+76],1
+ je .next_slot
+ mov rax,[rsp+32]
+ dec rax
+ lea r10,[inventory]
+ movzx ecx,word [r10+rax*8]
+ test ecx,ecx
+ jz .next_slot
+ movzx eax,word [r10+rax*8+2]
+ cmp ecx,10
+ jb .count
+ mov rax,[rsp+32]
+ dec rax
+ movzx eax,word [r10+rax*8+4]
+.count:
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+40]
+ mov A2,0
+ call hud_text
+.next_slot:
  inc qword [rsp+32]
- cmp qword [rsp+32],6
+ cmp qword [rsp+32],9
  jbe .slot
  mov A0,0x8892
  mov r10d,[hud_pair+4]
@@ -1080,9 +1411,9 @@ FRAME play_save,56
  mov [rsp+40],A0
  lea A0,[world]
  lea A1,[player]
- lea A2,[save_buffer]
- mov A3,262272
- call walk_encode
+ lea A2,[inventory]
+ lea A3,[save_target]
+ call game_encode
  test rax,rax
  js .fail
  mov A2,rax
@@ -1101,18 +1432,20 @@ FRAME play_save,56
 END_FRAME play_save,56
 FRAME play_load,40
  lea A1,[save_buffer]
- mov A2,262272
+ mov A2,262352
  call file_load
  test rax,rax
  js .fail
  mov A1,rax
  lea A0,[save_buffer]
  lea A2,[world]
- lea A3,[player]
- call walk_decode
+ lea A3,[load_bundle]
+ call game_decode
  test rax,rax
  jnz .fail
  mov qword [selection_valid],0
+ mov qword [mining_time],0
+ mov qword [mining_required],0
  lea r10,[loaded_text]
  mov [status],r10
  jmp .done
@@ -1137,20 +1470,35 @@ tile_span: dd 0.05859375
 half_texel_v: dd 0.03125
 v_max: dd 0.96875
 shades: dd 0.7,0.8,0.45,1.0,0.6,0.85
+hundred_float: dd 100.0
 one_float: dd 1.0
 half_float: dd 0.5
 six_float: dd 6.0
 outline_pad: dd 0.003
 outline_span: dd 1.006
 controls_1: db 'WASD MOVE SPACE JUMP SHIFT SPRINT',0
-controls_2: db 'ESC RELEASE MOUSE F5 SAVE F9 LOAD',0
+controls_2: db '1-9 SLOT F4 MODE F5 SAVE F9 LOAD F10 QUIT',0
 paused_text: db 'CLICK TO RESUME',0
 edit_full_text: db 'EDIT LIMIT REACHED - WORLD PRESERVED',0
-ready_text: db 'FIRST PERSON - F10 QUIT',0
+ready_text: db 'HOLD LEFT TO MINE - RIGHT TO PLACE',0
 saved_text: db 'SAVED',0
 loaded_text: db 'LOADED',0
 save_failed_text: db 'SAVE FAILED - CHECK CONSOLE',0
 load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
+recipes_text: db 'Z PLANKS X STICKS C WOOD PICK V STONE PICK',0
+survival_text: db 'SURVIVAL - FINITE ITEMS',0
+creative_text: db 'CREATIVE - UNLIMITED BLOCKS',0
+crafted_text: db 'CRAFTED',0
+craft_failed_text: db 'NEED INGREDIENTS AND INVENTORY SPACE',0
+bag_full_text: db 'INVENTORY FULL - BLOCK PRESERVED',0
+tool_needed_text: db 'STONE NEEDS A PICKAXE',0
+collected_text: db 'COLLECTED',0
+empty_name: db 'EMPTY',0
+planks_name: db 'PLANKS - CRAFTING INGREDIENT',0
+sticks_name: db 'STICKS - CRAFTING INGREDIENT',0
+wood_pick_name: db 'WOOD PICK',0
+stone_pick_name: db 'STONE PICK',0
+item_tiles: db 0,1,2,3,4,5,6,0,10,11,12,13
 stone_name: db 'STONE',0
 dirt_name: db 'DIRT',0
 grass_name: db 'GRASS',0
@@ -1158,7 +1506,7 @@ sand_name: db 'SAND',0
 wood_name: db 'WOOD',0
 leaves_name: db 'LEAVES',0
 align 4
-material_names: dd 0,stone_name-material_names,dirt_name-material_names,grass_name-material_names,sand_name-material_names,wood_name-material_names,leaves_name-material_names
+material_names: dd empty_name-material_names,stone_name-material_names,dirt_name-material_names,grass_name-material_names,sand_name-material_names,wood_name-material_names,leaves_name-material_names,empty_name-material_names,planks_name-material_names,sticks_name-material_names,wood_pick_name-material_names,stone_pick_name-material_names
 u_eye: db 'eye',0
 u_angles: db 'angles',0
 u_lens: db 'lens',0
@@ -1178,6 +1526,10 @@ game_seed: dq 42
 spawn: dq 0.5,0.0,0.5
 lens: dd 1.333333333,1.428148007
 digit_text: db '1',0
+number_text: times 4 db 0
+align 8
+save_target: dq 0,262352
+load_bundle: dq 0,0
 section .bss align=16
 gl: resq GL_PROC_COUNT
 vertex_shader: resd 1
@@ -1205,17 +1557,21 @@ target: resb 32
 scratch_vertices: resb 147456*24
 vertices: resb 1000000*32
 outline_vertices: resb 24*32
-hud_vertices: resb 20000*32
+hud_vertices: resb 100000*32
 rect: resd 4
 rect_color: resd 3
 rect_uv: resd 4
 captured: resq 1
-selected: resq 1
+inventory: resb 80
+pending_inventory: resb 80
+mining_time: resq 1
+mining_required: resq 1
+mining_target: resq 4
 selection_valid: resq 1
 hit: resb 72
 ray: resb 56
 eye: resd 3
 status: resq 1
-save_buffer: resb 262272
+save_buffer: resb 262352
 diagnostic: resb 2048
 ELF_STACK

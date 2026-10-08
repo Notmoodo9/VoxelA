@@ -33,6 +33,16 @@ SHIM ray_box_interval
 SHIM camera_ray
 SHIM mix64
 SHIM fnv1a
+SHIM item_limit
+SHIM inventory_init
+SHIM inventory_valid
+SHIM inventory_add
+SHIM inventory_craft
+SHIM inventory_consume
+SHIM inventory_wear
+SHIM mine_duration
+SHIM game_encode
+SHIM game_decode
 SHIM walk_checksum
 SHIM walk_encode
 SHIM walk_decode
@@ -94,4 +104,30 @@ SHIM arena_reset
 %endmacro
 MATH_SHIM sinf
 MATH_SHIM cosf
+%macro ALLOC_SHIM 1
+ global win_ %+ %1
+ extern %1
+ win_ %+ %1:
+ push rdi
+ push rsi
+ sub rsp,168
+ %assign i 6
+ %rep 10
+  movdqu [rsp+(i-6)*16],xmm %+ i
+  %assign i i+1
+ %endrep
+ mov rdi,rcx
+ call %1 wrt ..plt
+ %assign i 6
+ %rep 10
+  movdqu xmm %+ i,[rsp+(i-6)*16]
+  %assign i i+1
+ %endrep
+ add rsp,168
+ pop rsi
+ pop rdi
+ ret
+%endmacro
+ALLOC_SHIM malloc
+ALLOC_SHIM free
 section .note.GNU-stack noalloc noexec nowrite progbits
