@@ -8,6 +8,7 @@ extern stream_init, stream_recenter, stream_get, stream_edit, terrain_height
 extern player_init, player_step, player_look, player_resize, player_ray, player_overlaps_cell
 extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
+extern frame_stats_init, frame_stats_step
 extern inventory_can_craft, inventory_count, inventory_transfer
 extern inventory_init, inventory_add, inventory_craft, inventory_consume, inventory_wear, mine_duration
 FRAME compile_play_shader,72
@@ -261,6 +262,8 @@ FRAME play_init,120
  mov qword [menu_open],0
  mov qword [menu_source],-1
  mov qword [hud_virtual],0
+ lea A0,[frame_stats]
+ call frame_stats_init
  mov qword [selection_valid],0
  mov qword [captured],1
  lea r10,[ready_text]
@@ -451,6 +454,11 @@ FRAME play_rebuild,136
 .bad: mov rax,-1
 .done:
 END_FRAME play_rebuild,136
+FRAME play_frame_time,40
+ mov A1,A0
+ lea A0,[frame_stats]
+ call frame_stats_step
+END_FRAME play_frame_time,40
 FRAME play_step,72
  cmp qword [menu_open],0
  jne .paused
@@ -1344,6 +1352,27 @@ FRAME play_hud,72
  mov dword [rect_color+8],0x3f800000
  cmp qword [menu_open],0
  jne .menu_only
+ lea A0,[fps_text]
+ mov eax,[screen_width]
+ sub eax,108
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,24
+ mov A2,rax
+ call hud_text
+ mov rax,[frame_stats+16]
+ mov ecx,999
+ cmp rax,rcx
+ cmova rax,rcx
+ call hud_number
+ lea A0,[number_text]
+ mov eax,[screen_width]
+ sub eax,60
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,24
+ mov A2,rax
+ call hud_text
  lea A0,[controls_2]
  mov A1,12
  mov eax,[screen_height]
@@ -1797,6 +1826,7 @@ saved_text: db 'SAVED',0
 loaded_text: db 'LOADED',0
 save_failed_text: db 'SAVE FAILED - CHECK CONSOLE',0
 load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
+fps_text: db 'FPS',0
 menu_tip: db 'CLICK A GREEN RECIPE TO CRAFT',0
 menu_title: db 'INVENTORY AND CRAFTING',0
 menu_help: db 'E OR ESC CLOSE - CLICK TWO SLOTS TO MOVE',0
@@ -1892,6 +1922,7 @@ hud_vertices: resb 100000*32
 rect: resd 4
 rect_color: resd 3
 rect_uv: resd 4
+frame_stats: resq 3
 menu_open: resq 1
 menu_source: resq 1
 hud_virtual: resq 1

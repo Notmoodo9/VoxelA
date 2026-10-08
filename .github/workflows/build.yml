@@ -50,6 +50,7 @@ jobs:
       - run: /ucrt64/bin/python.exe tests/player.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/walk_save.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/inventory.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/frame_stats.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/game_save.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: ./build/windows/${{ matrix.config }}/voxela.exe
       - run: /ucrt64/bin/python.exe tests/packaging.py

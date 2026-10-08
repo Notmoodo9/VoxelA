@@ -24,6 +24,7 @@ Implemented:
 - A first-person walking player with relative mouse look, perspective projection, gravity, jumping, wall sliding, ceiling/floor collisions, sprinting, and collision-safe placement.
 - An original nearest-filtered texture atlas, cutout leaves, crosshair, numbered inventory/palette hotbar, stack/durability labels, selected-item label, pause prompt, and bitmap controls/status HUD.
 - Finite nine-slot stacks, direct collection of mined blocks, tool-sensitive mining times, atomic recipes, wooden/stone pickaxe durability, and resource-consuming placement.
+- An averaged FPS counter updated from real frame timing, including stalls and paused frames.
 - A mouse-driven E inventory/recipe menu with live ingredient totals, availability previews, stack merging/moving, and automatic gameplay pause.
 - Explicit F4 Survival/Creative switching with a separate unlimited palette that preserves Survival inventory.
 - Checksummed gameplay saves containing seed, player pose, all journal entries, inventory, selected slot, tools, and mode; existing player-only saves migrate with starter supplies.
@@ -58,7 +59,7 @@ make TARGET=windows TOOLCHAIN_PREFIX=x86_64-w64-mingw32- build/windows/debug/eng
 
 Cross-linked executables require a Windows runtime to execute. `NASM=/path/to/nasm` and `LINKER=/path/to/gcc` can override tool locations. Outputs are separated by platform and debug/release configuration. Use `make clean` after changing toolchain or assembler options. `make objects TARGET=windows` checks COFF assembly without needing a linker.
 
-`make test` runs 55 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks 180,665 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
+`make test` runs 55 native assembly assertions and returns nonzero on failure. Passing any argument to the test executable deliberately exercises its failure-reporting path. Linux `make reference` checks 186,918 assertions against independent integer references and camera invariants, including all section cells, allocation errors, numeric overflow, negative coordinates, world limits, buffer canaries, and frozen section hashes. `make abi-reference` repeats that suite against Microsoft-ABI core code via a Linux adapter; it does not emulate Windows OS behavior. CI defines Linux and native Windows debug/release jobs; those remote jobs have not been observed running yet.
 
 ### Play the first-person prototype
 
@@ -569,3 +570,10 @@ The inventory row consists of nine 56×56 hit regions spaced 64 virtual pixels a
 The OpenGL integration suite checks panel rendering, paused pose/edits, click boundaries/gaps, unavailable recipes, mouse crafting with ingredients spread across slots, tool movement, and safe close/reinitialization. The actual window test exercises SDL E events, absolute pointer conversion, four mouse recipe actions, resumed mining, saves, and exit. Both CPU ABI suites verify independent transfer models, read-only availability, ingredient totals, invalid indices, stack caps, and complete tool records. Native Windows jobs include these core checks; Windows graphics execution remains unverified locally.
 
 ![Actual inventory and recipe menu readback](docs/inventory-preview.png)
+
+
+### Frame-rate display
+
+The upper-right HUD shows whole FPS averaged over a sampling interval of at least one second (initially 0). Sampling uses the SDL frame delta independently of the movement clamp; long render/streaming stalls lower the reported rate. Paused gameplay continues rendering and sampling. The displayed number caps at999 to fit the HUD; the underlying statistic is uncapped. These diagnostic values are temporary and are not saved.
+
+`FrameStats24` stores uint64 accumulated milliseconds, frames in the current sample, and last whole FPS at offsets0/8/16. `frame_stats_init(state)` clears those fields. `frame_stats_step(state,elapsed_ms)` accepts a uint32 delta, returns0/-1, and calculates `frames*1000/elapsed` once elapsed reaches1000ms, then begins a new interval. Zero-time frames do not divide by zero. Invalid deltas or saturated frame counts preserve state. The owning renderer initializes and owns the state. `tests/frame_stats.py` verifies6253 independent zero-time, averaged, stalled, invalid-input and canary assertions under both ABIs; native Windows CI runs it against the DLL. The graphics suite checks that sampled timing changes the HUD and fresh initialization resets it.

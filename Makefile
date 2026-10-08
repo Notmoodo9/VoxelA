@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -53,6 +53,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/snapshot.py $(BUILD)/libvoxela.so
 	python3 tests/player.py $(BUILD)/libvoxela.so
 	python3 tests/walk_save.py $(BUILD)/libvoxela.so
+	python3 tests/frame_stats.py $(BUILD)/libvoxela.so
 	python3 tests/inventory.py $(BUILD)/libvoxela.so
 	python3 tests/game_save.py $(BUILD)/libvoxela.so
 endif
@@ -79,6 +80,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/snapshot.py $<
 	python3 tests/player.py $<
 	python3 tests/walk_save.py $<
+	python3 tests/frame_stats.py $<
 	python3 tests/inventory.py $<
 	python3 tests/game_save.py $<
 endif

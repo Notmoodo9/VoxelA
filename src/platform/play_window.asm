@@ -8,6 +8,7 @@ extern SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
+extern play_frame_time
 extern play_menu, play_menu_open, play_menu_click
 extern play_mine, play_mode, play_craft, play_get_inventory
 extern play_pick, play_apply, play_select, play_set_capture, play_save, play_load, play_seed
@@ -473,6 +474,11 @@ FRAME main,120
  call [procs]
  mov A0,0x4100
  call [procs+8]
+ mov r10d,[elapsed]
+ mov A0,r10
+ call play_frame_time
+ test rax,rax
+ jnz .pixel_error
  call play_draw
  test eax,eax
  jnz .pixel_error

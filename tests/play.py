@@ -17,6 +17,7 @@ getproc=bind(sdl,'SDL_GL_GetProcAddress',[C.c_char_p],C.c_void_p)
 start=bind(engine,'play_init',[]);draw=bind(engine,'play_draw',[]);stop=bind(engine,'play_shutdown',[])
 look=bind(engine,'play_look',[C.c_int64,C.c_int64]);step=bind(engine,'play_step',[C.c_uint64,C.c_uint64]);resize=bind(engine,'play_resize',[C.c_uint64,C.c_uint64])
 getplayer=bind(engine,'play_get_player',[C.c_void_p]);pick=bind(engine,'play_pick',[]);hit=bind(engine,'play_get_hit',[C.c_void_p]);select=bind(engine,'play_select',[C.c_uint64]);apply=bind(engine,'play_apply',[C.c_uint64]);edit=bind(engine,'play_edit_cell',[C.c_void_p,C.c_uint64]);get=bind(engine,'play_get_block',[C.c_void_p])
+frametime=bind(engine,'play_frame_time',[C.c_uint64])
 menu=bind(engine,'play_menu',[C.c_uint64]);menuopen=bind(engine,'play_menu_open',[]);menuclick=bind(engine,'play_menu_click',[C.c_uint64,C.c_uint64])
 mine=bind(engine,'play_mine',[C.c_uint64,C.c_uint64]);mode=bind(engine,'play_mode',[C.c_uint64]);craft=bind(engine,'play_craft',[C.c_uint64]);getinventory=bind(engine,'play_get_inventory',[C.c_void_p])
 save=bind(engine,'play_save',[C.c_char_p]);load=bind(engine,'play_load',[C.c_char_p]);capturemode=bind(engine,'play_set_capture',[C.c_uint64]);setseed=bind(engine,'play_seed',[C.c_uint64]);height=bind(engine,'terrain_height',[C.c_uint64,C.c_int64,C.c_int64])
@@ -73,6 +74,10 @@ try:
  assert menu(0)==0 and menuopen()==0
  assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,32)==(10,1,60,0)
  assert stop()==0 and start()==0 and capture()==image,'menu state did not reset'
+ for _ in range(60):assert frametime(17)==0
+ assert capture()!=image,'FPS display did not update'
+ assert frametime(0x100000000)==-1
+ assert stop()==0 and start()==0 and capture()==image,'FPS sample reset'
  assert getplayer(pose)==0
  initial=bytes(pose)
  assert capturemode(0)==0;paused=capture();assert paused!=image,'pause HUD missing'
