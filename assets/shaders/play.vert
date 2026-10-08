@@ -20,7 +20,7 @@ vec3 lightPoint(vec3 p){
 void main(){
  tint=color;texcoord=uv;relativePosition=position-eye;skyRay=vec3(0.0);lightCoord=lightPoint(position)*0.5+0.5;
  if(hud==3){gl_Position=vec4(lightPoint(position),1.0);return;}
- if(hud!=0){
+ if(hud==1 || hud==2){
   gl_Position=vec4(position,1.0);
   // Invert the same yaw/pitch and lens used by the world projection.
   float right=position.x*lens.x/lens.y;
@@ -35,5 +35,5 @@ void main(){
  float ahead=angles.x*p.x-angles.y*p.z;
  float up=angles.w*p.y-angles.z*ahead;
  float depth=angles.z*p.y+angles.w*ahead;
- gl_Position=vec4(right*lens.y/lens.x,up*lens.y,1.0010422*depth-0.1000521,depth);
+ gl_Position=vec4(right*lens.y/lens.x,up*lens.y,1.0000122071*depth-0.1000006104,depth);
 }

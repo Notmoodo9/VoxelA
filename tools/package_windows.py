@@ -73,7 +73,7 @@ def package(viewer, headless, dll_dir, system_dir, license_dir, output, objdump,
             '2x2 grid: wood -> planks, vertical planks -> sticks; Shift-output repeats; Backspace clears grid.\n'
             'Double-click gathers; hover +1-9 swaps; wheel selects; Creative middle-click picks aimed block.\n'
             '9 hotbar +27 storage; Tab toggles recipes. E closes/resumes; Escape closes/pauses; click: resume; F10: exit.\n'
-            'F4: toggle Survival/Creative; F6: cycle Low/Balanced/High graphics. F5: save all gameplay; F9: load voxela-world.vxa.\n'
+            'F4: toggle Survival/Creative; F6: cycle Low/Balanced/High graphics; F7/F8: far radius down/up (2-256 chunks). F5: save all gameplay; F9: load voxela-world.vxa.\n'
             'Autosaves every five minutes, on pause/inventory opening, and on orderly exit.\n'
             'Creative: double Space flight, Space up, Left Ctrl down; comma/period change flight speed.\n'
             'F3 coordinates; brackets FOV; minus/equals sensitivity; I invert; T toggle sprint.\n'

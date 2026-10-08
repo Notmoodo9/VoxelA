@@ -115,10 +115,20 @@ SDL_PollEvent:
  mov [rdi+48],rax
  ret
 .initial_save:
- cmp byte [graphics_stage],3
+ cmp byte [graphics_stage],5
  jae .initial_save_ready
  inc byte [graphics_stage]
+ cmp byte [graphics_stage],4
+ je .test_far_less
+ cmp byte [graphics_stage],5
+ je .test_far_more
  mov r11d,1073741887 ; actual F6 cycling restores the default High preset
+ jmp .craft_key_same_phase
+.test_far_less:
+ mov r11d,1073741888
+ jmp .craft_key_same_phase
+.test_far_more:
+ mov r11d,1073741889
  jmp .craft_key_same_phase
 .initial_save_ready:
  call .clear

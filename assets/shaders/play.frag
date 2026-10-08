@@ -9,6 +9,7 @@ uniform sampler2D shadowMap;
 in vec3 lightCoord;
 uniform int hud;
 uniform int quality;
+uniform vec2 viewDistance;
 out vec4 fragmentColor;
 const vec3 sun=normalize(vec3(-0.455,0.808,-0.374));
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -50,6 +51,9 @@ float sunlight(float diffuse){
  return visibility/9.0;
 }
 void main(){
+ // Detailed chunks own their footprint, regardless of coarse triangle height.
+ vec2 cellXZ=(relativePosition+eye).xz;
+ if(hud==4 && all(greaterThanEqual(cellXZ,vec2(-32))) && all(lessThan(cellXZ,vec2(48))))discard;
  if(hud==2){fragmentColor=vec4(display(sky(normalize(skyRay),true)),1.0);return;}
  vec4 sampleColor=texcoord.x<0.0?vec4(1.0):texture(atlas,texcoord);
  if(sampleColor.a<0.5)discard;
@@ -58,12 +62,12 @@ void main(){
  if(hud==1 || texcoord.x<0.0){fragmentColor=vec4(tint*sampleColor.rgb,1.0);return;}
  vec3 normal=normalize(cross(dFdx(relativePosition),dFdy(relativePosition)));
  if(!gl_FrontFacing)normal=-normal;
- vec3 albedo=pow(sampleColor.rgb,vec3(2.2));
+ vec3 albedo=pow(sampleColor.rgb*(hud==4?tint:vec3(1)),vec3(2.2));
  float diffuse=max(dot(normal,sun),0.0);
  vec3 ambient=mix(vec3(0.16,0.18,0.22),vec3(0.35,0.43,0.54),normal.y*0.5+0.5);
  vec3 rgb=albedo*(ambient+vec3(1.0,0.85,0.66)*diffuse*sunlight(diffuse)*1.15);
  float distanceXZ=length(relativePosition.xz);
- float fog=smoothstep(18.0,32.0,distanceXZ);
+ float fog=smoothstep(viewDistance.x,viewDistance.y,distanceXZ);
  if(quality>0){
   // Low-altitude haze adds depth without obscuring nearby mining targets.
   float haze=(1.0-exp(-distanceXZ*0.008))*exp(-max(relativePosition.y,0.0)*0.03);

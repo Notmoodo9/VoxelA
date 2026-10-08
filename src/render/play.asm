@@ -22,6 +22,7 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
+extern landscape_sample
 extern book_init, book_search, book_append, book_backspace, book_scroll, book_recipe
 extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
 extern recipe_catalog_info
@@ -192,8 +193,12 @@ FRAME play_init,120
  lea r11,[locations]
  mov [r11+r10*4],eax
  inc qword [rsp+80]
- cmp qword [rsp+80],7
+ cmp qword [rsp+80],8
  jb .uniforms
+ lea A0,[far_pair]
+ call create_buffer
+ test rax,rax
+ jnz .fail
  lea A0,[mesh_pair]
  call create_buffer
  test rax,rax
@@ -362,7 +367,7 @@ FRAME play_rebuild,136
  lea r11,[neighbors]
  mov [r11+r10*8],rax
  inc qword [rsp+80]
- cmp qword [rsp+80],7
+ cmp qword [rsp+80],8
  jb .neighbor
  mov r10,[rsp+72]
  mov A0,[r10+24]
@@ -493,6 +498,7 @@ FRAME play_rebuild,136
  dec ecx
  jnz .clean
  mov qword [world+88],0
+ mov dword [far_dirty],1
  mov dword [shadow_dirty],1
  xor eax,eax
  jmp .done
@@ -2484,7 +2490,7 @@ FRAME hud_settings,72
  mov [rsp+40],rax
  mov A1,rax
  mov eax,[screen_height]
- sub eax,30
+ sub eax,108
  mov A2,rax
  call hud_text
  mov rax,[rsp+32]
@@ -2494,7 +2500,7 @@ FRAME hud_settings,72
  lea A0,[number_text]
  mov A1,[rsp+40]
  mov eax,[screen_height]
- sub eax,48
+ sub eax,126
  mov A2,rax
  call hud_text
  inc qword [rsp+32]
@@ -2562,6 +2568,32 @@ FRAME hud_fps,40
  mov A1,rax
  mov eax,[screen_height]
  sub eax,24
+ mov A2,rax
+ call hud_text
+ lea A0,[far_label]
+ mov eax,[screen_width]
+ sub eax,180
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,44
+ mov A2,rax
+ call hud_text
+ mov rax,[far_radius]
+ call hud_number
+ lea A0,[number_text]
+ mov eax,[screen_width]
+ sub eax,120
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,44
+ mov A2,rax
+ call hud_text
+ lea A0,[chunk_label]
+ mov eax,[screen_width]
+ sub eax,72
+ mov A1,rax
+ mov eax,[screen_height]
+ sub eax,44
  mov A2,rax
  call hud_text
  xor eax,eax
@@ -2945,6 +2977,23 @@ play_graphics:
  ret
 .bad: mov rax,-1
  ret
+global play_far_distance, play_get_far_distance
+play_far_distance:
+ cmp A0,2
+ jb .bad
+ cmp A0,256
+ ja .bad
+ mov [far_radius],A0
+ lea r10,[far_updated_text]
+ mov [status],r10
+ mov dword [far_dirty],1
+ xor eax,eax
+ ret
+.bad: mov rax,-1
+ ret
+play_get_far_distance:
+ mov rax,[far_radius]
+ ret
 play_get_graphics:
  mov rax,[graphics_quality]
  ret
@@ -2975,6 +3024,139 @@ FRAME play_sky,40
  mov A0,0xb71
  GLCALL glEnable
 END_FRAME play_sky,40
+FRAME play_far_rebuild,120
+ mov qword [rsp+32],0
+.sample:
+ mov rax,[rsp+32]
+ xor edx,edx
+ mov ecx,65
+ div rcx
+ sub rax,32
+ sub rdx,32
+ mov r10,[far_radius]
+ shl r10,4
+ imul rax,r10
+ imul rdx,r10
+ sar rax,5
+ sar rdx,5
+ mov [rsp+40],rdx
+ mov [rsp+48],rax
+ mov A0,[game_seed]
+ mov r10,[world+32]
+ shl r10,4
+ add r10,rdx
+ mov [rsp+64],r10
+ mov r11,[world+40]
+ shl r11,4
+ add r11,rax
+ mov [rsp+72],r11
+ mov A1,r10
+ mov A2,r11
+ lea A3,[rsp+80]
+ call landscape_sample
+ test rax,rax
+ js .outside
+ movsxd rax,dword [rsp+80]
+ mov [rsp+56],rax
+ mov A0,[game_seed]
+ mov A1,[rsp+64]
+ mov A2,[rsp+72]
+ call terrain_height
+ ; Legacy surface blends into the future landscape across 48..160 blocks.
+ mov r10,[rsp+40]
+ mov r11,[rsp+48]
+ neg r10
+ cmovs r10,[rsp+40]
+ neg r11
+ cmovs r11,[rsp+48]
+ cmp r10,r11
+ cmovb r10,r11
+ sub r10,48
+ xor r11d,r11d
+ cmp r10,0
+ cmovl r10,r11
+ mov r11,112
+ cmp r10,r11
+ cmovg r10,r11
+ mov r11,[rsp+56]
+ sub r11,rax
+ imul r11,r10
+ mov [rsp+104],rax
+ mov rax,r11
+ cqo
+ mov r11,112
+ idiv r11
+ add rax,[rsp+104]
+ sub rax,2
+ mov [rsp+56],rax
+ jmp .vertex
+.outside:
+ mov qword [rsp+56],-256
+ mov dword [rsp+84],4
+.vertex:
+ mov rax,[rsp+32]
+ shl rax,5
+ lea r10,[far_grid]
+ add r10,rax
+ cvtsi2ss xmm0,qword [rsp+40]
+ movss [r10],xmm0
+ cvtsi2ss xmm0,qword [rsp+56]
+ movss [r10+4],xmm0
+ cvtsi2ss xmm0,qword [rsp+48]
+ movss [r10+8],xmm0
+ mov eax,[rsp+84]
+ imul eax,12
+ lea r11,[biome_colors]
+ mov rax,[r11+rax]
+ mov [r10+12],rax
+ mov eax,[rsp+84]
+ imul eax,12
+ mov eax,[r11+rax+8]
+ mov [r10+20],eax
+ mov dword [r10+24],__float32__(0.03125)
+ mov dword [r10+28],__float32__(0.5)
+ inc qword [rsp+32]
+ cmp qword [rsp+32],4225
+ jb .sample
+ xor r8d,r8d
+ lea r11,[far_vertices]
+.cell:
+ mov eax,r8d
+ xor edx,edx
+ mov ecx,64
+ div ecx
+ imul eax,65
+ add eax,edx
+ xor ecx,ecx
+.triangle:
+ lea r10,[far_corners]
+ movzx edx,word [r10+rcx*2]
+ add edx,eax
+ shl edx,5
+ lea r10,[far_grid]
+ add r10,rdx
+ movups xmm0,[r10]
+ movups xmm1,[r10+16]
+ movups [r11],xmm0
+ movups [r11+16],xmm1
+ add r11,32
+ inc ecx
+ cmp ecx,6
+ jb .triangle
+ inc r8d
+ cmp r8d,4096
+ jb .cell
+ mov A0,0x8892
+ mov r10d,[far_pair+4]
+ mov A1,r10
+ GLCALL glBindBuffer
+ mov A0,0x8892
+ mov A1,786432
+ lea A2,[far_vertices]
+ mov A3,0x88e4
+ GLCALL glBufferData
+ mov dword [far_dirty],0
+END_FRAME play_far_rebuild,120
 FRAME play_draw,40
  cmp qword [world+88],0
  je .ready
@@ -2982,6 +3164,10 @@ FRAME play_draw,40
  test rax,rax
  jnz .done
 .ready:
+ cmp dword [far_dirty],0
+ je .far_ready
+ call play_far_rebuild
+.far_ready:
  mov r10d,[program]
  mov A0,r10
  GLCALL glUseProgram
@@ -3031,6 +3217,17 @@ FRAME play_draw,40
  mov A0,r10
  xor A1,A1
  GLCALL glUniform1i
+ mov rax,[far_radius]
+ shl rax,4
+ cvtsi2ss xmm0,rax
+ movss [view_distance+4],xmm0
+ mulss xmm0,[fog_start_fraction]
+ movss [view_distance],xmm0
+ mov r10d,[locations+28]
+ mov A0,r10
+ mov A1,1
+ lea A2,[view_distance]
+ GLCALL glUniform2fv
  mov r10d,[locations+20]
  mov A0,r10
  mov A1,[graphics_quality]
@@ -3049,6 +3246,17 @@ FRAME play_draw,40
  mov A0,0x84c0
  GLCALL glActiveTexture
  call play_sky
+ mov r10d,[locations+12]
+ mov A0,r10
+ mov A1,4
+ GLCALL glUniform1i
+ mov r10d,[far_pair]
+ mov A0,r10
+ GLCALL glBindVertexArray
+ mov A0,4
+ xor A1,A1
+ mov A2,24576
+ GLCALL glDrawArrays
  mov r10d,[locations+12]
  mov A0,r10
  xor A1,A1
@@ -3113,7 +3321,7 @@ FRAME play_shutdown,56
  lea r10,[mesh_pair]
  mov qword [r10+rax],0
  add qword [rsp+40],8
- cmp qword [rsp+40],24
+ cmp qword [rsp+40],32
  jb .pair
  cmp dword [texture],0
  je .program
@@ -3218,6 +3426,12 @@ fantasy_trim:
  dd 154.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
  dd 482.0,74.0,4.0,4.0, 0.92,0.76,0.43,0.0
  dd 482.0,402.0,4.0,4.0, 0.92,0.76,0.43,0.0
+far_corners: dw 0,65,66,0,66,1
+biome_colors:
+ dd 0.36,0.55,0.23, 0.21,0.42,0.25, 0.82,0.68,0.40
+ dd 0.53,0.55,0.63, 0.17,0.39,0.61, 0.25,0.52,0.66
+ dd 0.79,0.86,0.91, 0.29,0.40,0.32, 0.63,0.60,0.26
+ dd 0.59,0.38,0.76, 0.32,0.25,0.30
 sky_vertices:
  dd -1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
  dd 1.0,-1.0,0.0, 1.0,1.0,1.0, -1.0,-1.0
@@ -3252,12 +3466,15 @@ controls_1: db 'WASD MOVE SPACE JUMP SHIFT SPRINT',0
 controls_2: db 'E INVENTORY ESC PAUSE F5 SAVE F9 LOAD',0
 paused_text: db 'CLICK TO RESUME',0
 edit_full_text: db 'EDIT LIMIT REACHED - WORLD PRESERVED',0
+far_updated_text: db 'FAR VIEW UPDATED - F7 LESS F8 MORE',0
 ready_text: db 'HOLD LEFT TO MINE - RIGHT TO PLACE',0
 saved_text: db 'SAVED',0
 loaded_text: db 'LOADED',0
 save_failed_text: db 'SAVE FAILED - CHECK CONSOLE',0
 load_failed_text: db 'LOAD FAILED - WORLD PRESERVED',0
 cursor_full_text: db 'PLACE HELD ITEMS BEFORE CLOSING',0
+far_label: db 'FAR',0
+chunk_label: db 'CH',0
 fps_text: db 'FPS',0
 menu_tip: db 'TAB RECIPES - E OR ESC CLOSE',0
 grid_label: db 'CRAFTING',0
@@ -3289,13 +3506,14 @@ align 4
 material_names: dd empty_name-material_names,stone_name-material_names,dirt_name-material_names,grass_name-material_names,sand_name-material_names,wood_name-material_names,leaves_name-material_names,empty_name-material_names,planks_name-material_names,sticks_name-material_names,wood_pick_name-material_names,stone_pick_name-material_names
 u_eye: db 'eye',0
 u_angles: db 'angles',0
+u_view: db 'viewDistance',0
 u_shadow: db 'shadowMap',0
 u_quality: db 'quality',0
 u_lens: db 'lens',0
 u_hud: db 'hud',0
 u_atlas: db 'atlas',0
 align 4
-uniform_names: dd u_eye-uniform_names,u_angles-uniform_names,u_lens-uniform_names,u_hud-uniform_names,u_atlas-uniform_names,u_quality-uniform_names,u_shadow-uniform_names
+uniform_names: dd u_eye-uniform_names,u_angles-uniform_names,u_lens-uniform_names,u_hud-uniform_names,u_atlas-uniform_names,u_quality-uniform_names,u_shadow-uniform_names,u_view-uniform_names
 vertex_source: incbin 'assets/shaders/play.vert'
  db 0
 fragment_source: incbin 'assets/shaders/play.frag'
@@ -3311,6 +3529,10 @@ quality_balanced: db 'GRAPHICS BALANCED',0
 quality_high: db 'GRAPHICS HIGH',0
 quality_labels: dd quality_low-quality_labels,quality_balanced-quality_labels,quality_high-quality_labels
 align 8
+view_distance: dd 700.0,1024.0
+fog_start_fraction: dd 0.72
+align 8
+far_radius: dq 64
 graphics_quality: dq 2
 lens: dd 1.333333333,0.916331174
 digit_text: db '1',0
@@ -3390,12 +3612,14 @@ texture: resd 1
 shadow_texture: resd 1
 shadow_framebuffer: resd 1
 shadow_dirty: resd 1
-locations: resd 7
+locations: resd 8
 screen_width: resd 1
 screen_height: resd 1
 mesh_pair: resd 2
 outline_pair: resd 2
 hud_pair: resd 2
+far_pair: resd 2
+far_dirty: resd 1
 vertex_count: resq 1
 hud_count: resq 1
 world: resb 96
@@ -3410,6 +3634,8 @@ faces: resb 24576*8
 target: resb 32
 scratch_vertices: resb 147456*24
 vertices: resb 1000000*32
+far_grid: resb 4225*32
+far_vertices: resb 24576*32
 outline_vertices: resb 24*32
 hud_vertices: resb 100000*32
 rect: resd 4

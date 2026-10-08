@@ -23,9 +23,11 @@ F4 switches between finite Survival resources and an unlimited Creative palette.
 
 Terrain is frozen generator0: heights64–79, surface layers and climate-derived
 biome labels. Trees, caves, true mountains, liquids and creatures are absent.
-The resident view is a synchronous5×5-column cache,400 sections at Y0–255, with
+The full-detail view is a synchronous5×5-column cache,400 sections at Y0–255, with
 an8,192-edit journal. It is not the requested16-near/64-far renderer or1,024-block
-world. Health/hunger and physical item drops remain pending. Creative flight and
+world. A separate seeded 11-biome landscape preview now extends the visible
+horizon to a configurable 2–256 chunks, default 64; it is not explorable block
+terrain. Health/hunger and physical item drops remain pending. Creative flight and
 player settings are now available, but settings/flight are not persisted yet.
 
 Chest/table storage, stable container IDs, registry2 inventory and2×2/3×3 recipe
@@ -82,6 +84,7 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | Double Space / Space / Left Ctrl | Creative flight toggle / fly up / fly down |
 | [ / ] / - / = | FOV decrease/increase / sensitivity decrease/increase |
 | I / T / F3 / , / . | Invert mouse / toggle sprint / coordinates / slower/faster flight |
+| F7 / F8 | Halve / double simplified far radius, 2–256 chunks; default 64 |
 | F6 | Cycle Low / Balanced / High graphics (default High) |
 | F4 / middle mouse | Toggle Creative / copy aimed supported block in Creative |
 | E / Tab or book button | Inventory / switch player-and-armor area to recipe book |
@@ -244,12 +247,14 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [ ] Greedy/equivalent mesh reduction, sparse vertical sections and memory budgets.
 - [ ] Thread workers only after ownership/revision/cancellation contracts pass.
 - [ ] Independently adjustable full-detail radius and simplified distant terrain.
-- [ ] Expose2–256 far distance; reach16/64 defaults with measured smooth loading.
+- [x] Expose2–256 simplified far radius, default64, with F7/F8 and HUD feedback.
+- [ ] Reach16-chunk full detail and measured smooth asynchronous loading.
 - [ ] Stress rapid traversal, teleports, edits, distance changes and world borders.
 
 ### 6. Terrain, biomes, caves and liquids
 
 - [x] Frozen generator0 seed/noise/section golden fixtures and negative-coordinate checks.
+- [x] Separate seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs.
 - [ ] Extend every vertical lookup/cache/save/physics/render path to Y−256–767.
 - [ ] Versioned continentalness/elevation/temperature/moisture fields and biome blends.
 - [ ] Plains/forests/deserts/mountains/oceans/rivers with distinct profiles/materials.
@@ -280,6 +285,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Dreamlike gradient sky, sun halo, procedural cloud layer and atmospheric fog.
 - [x] Real 1,024² sun depth map with filtered shadow edges on Balanced/High.
 - [x] Live Low/Balanced/High presets, default High; graphics do not alter saves/items.
+- [x] Seeded 11-biome distant heightfield preview and bounded 2–256-chunk far radius.
+- [ ] Adopt the new heightfield in versioned explorable chunks and preserve old borders.
 - [ ] Extend sun shadows to dynamic/cascaded coverage for tall and distant terrain.
 - [ ] Moving, richer cloud volumes with wind and sunlight scattering.
 - [ ] Reflective water: fluid geometry first, Fresnel surface/reflection pass second.
@@ -325,3 +332,5 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 checklist. New decisions and implementation notes belong in focused documents;
 completion and ordering belong here. Keep completion claims scoped, preserve
 supported saves and unrelated changes, and never force-push.
+
+See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.md) for the new visual preview and its limits.

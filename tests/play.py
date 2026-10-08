@@ -82,6 +82,20 @@ try:
  assert error()==0
  # Restore initialization's normal HUD before existing image/idempotency checks.
  assert stop()==0 and start()==0;image=capture()
+ farset=bind(engine,'play_far_distance',[C.c_int64]);farget=bind(engine,'play_get_far_distance',[])
+ assert farget()==64 and farset(1)==-1 and farset(257)==-1 and farget()==64
+ assert farset(2)==0;short_view=capture()
+ assert farset(256)==0;long_view=capture()
+ assert short_view!=long_view,'far radius failed to change landscape'
+ assert getinventory(visual_inv)==0 and bytes(visual_inv)==owned,'far view mutated inventory'
+ assert farset(64)==0
+ if len(sys.argv)>7:
+  flypress=bind(engine,'play_space_press',[C.c_uint64])
+  assert mode(1)==0 and flypress(1000)==0 and flypress(1100)==1
+  for _ in range(120):assert step(16,100)==0
+  assert look(400,100)==0
+  png(sys.argv[7],capture())
+ assert stop()==0 and start()==0;image=capture()
  # Storage/standard controls work independently of the hotbar.
  inv36=(C.c_ubyte*304)();assert menu(1)==0
  assert menuaction(176,104,2)==1 # shift dirt into storage

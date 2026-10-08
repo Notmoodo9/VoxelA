@@ -9,6 +9,7 @@ extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
 extern play_graphics, play_get_graphics
+extern play_far_distance, play_get_far_distance
 extern SDL_StartTextInput, SDL_StopTextInput
 extern play_book_text, play_book_backspace, play_book_scroll, play_book_focused
 extern play_scroll, play_copy_block, play_menu_number, play_menu_clear
@@ -395,6 +396,10 @@ FRAME main,120
  je .grid_clear
  cmp dword [event+20],1073741885
  je .mode
+ cmp dword [event+20],1073741888
+ je .far_less
+ cmp dword [event+20],1073741889
+ je .far_more
  cmp dword [event+20],1073741887 ; F6 graphics quality
  je .graphics
  cmp dword [event+20],1073741886
@@ -438,6 +443,23 @@ FRAME main,120
  mov eax,eax ; SDL ticks are explicitly unsigned32
  mov A0,rax
  call play_space_press
+ jmp .loop
+.far_less:
+ call play_get_far_distance
+ shr rax,1
+ mov r10,2
+ cmp rax,r10
+ cmovb rax,r10
+ jmp .far_set
+.far_more:
+ call play_get_far_distance
+ shl rax,1
+ mov r10,256
+ cmp rax,r10
+ cmova rax,r10
+.far_set:
+ mov A0,rax
+ call play_far_distance
  jmp .loop
 .graphics:
  call play_get_graphics

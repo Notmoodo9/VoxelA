@@ -266,4 +266,5 @@ SHIM book_append
 SHIM book_backspace
 SHIM book_scroll
 SHIM book_recipe
+SHIM landscape_sample
 section .note.GNU-stack noalloc noexec nowrite progbits
