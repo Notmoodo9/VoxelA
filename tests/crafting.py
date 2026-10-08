@@ -5,7 +5,7 @@ lib=C.CDLL(sys.argv[1]);P=C.c_void_p;I=C.c_int64;checks=0
 
 def bind(name,args):
  f=getattr(lib,name);f.argtypes=args;f.restype=I;return f
-init=bind('inventory36_init',[P]);valid=bind('craft_valid',[P]);preview=bind('craft_preview',[P]);click=bind('craft_click',[P,I,I]);clear=bind('craft_clear',[P]);take=bind('craft_take',[P,I]);repeat=bind('craft_repeat',[P]);fill=bind('craft_fill',[P,I]);swap=bind('inventory36_swap',[P,I,I]);collect=bind('craft_collect',[P])
+init=bind('inventory36_init',[P]);valid=bind('craft_valid',[P]);preview=bind('craft_preview',[P]);click=bind('craft_click',[P,I,I]);clear=bind('craft_clear',[P]);take=bind('craft_take',[P,I]);repeat=bind('craft_repeat',[P]);fill=bind('craft_fill',[P,I]);swap=bind('inventory36_swap',[P,I,I]);collect=bind('craft_collect',[P]);canfill=bind('craft_can_fill',[P,I])
 state=(C.c_ubyte*352)()
 def check(value,message):
  global checks
@@ -36,6 +36,10 @@ fresh();before=bytes(state);check(fill(state,1)==0 and bytes(state)==before,'mis
 fresh()
 for i in range(36):put(i,8,64)
 grid((5,0,0,0));before=bytes(state);check(clear(state)==0 and click(state,0,2)==0 and take(state,1)==0 and bytes(state)==before,'full bag transactions')
+# Availability uses execution but never mutates ownership or output canaries.
+for recipe in (0,1,2,-1):
+ fresh();before=bytes(state);want=1 if recipe==0 else 0 if recipe==1 else -1
+ check(canfill(state,recipe)==want and bytes(state)==before,'autofill availability immutable')
 # Empty tools retain exact wear in grid, cursor and hotbar swaps.
 fresh();put(37,11,1,17);check(click(state,3,0)==1 and struct.unpack_from('<HHHH',state,328)==(11,1,17,0),'tool placement');check(click(state,3,1)==1 and struct.unpack_from('<HHHH',state,296)==(11,1,17,0),'tool pickup');check(click(state,0,1)==1 and click(state,0,2)==1,'tool return');check(swap(state,2,8)==1 and struct.unpack_from('<HHHH',state,64)==(11,1,17,0),'number swap')
 # Double-click includes grid cells and never merges tools or exceeds64.

@@ -27,12 +27,12 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
 objects: $(OBJECTS) $(BUILD)/src/platform/main.o $(BUILD)/tests/runner.o
-$(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc
+$(BUILD)/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc include/container.inc
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -f $(FORMAT) $< -o $@
 $(BUILD)/voxela$(EXT): $(OBJECTS) $(BUILD)/src/platform/main.o
@@ -55,6 +55,8 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/walk_save.py $(BUILD)/libvoxela.so
 	python3 tests/inventory36.py $(BUILD)/libvoxela.so
 	python3 tests/game36_save.py $(BUILD)/libvoxela.so
+	python3 tests/containers.py $(BUILD)/libvoxela.so
+	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
 	python3 tests/ui_layout.py $(BUILD)/libvoxela.so
 	python3 tests/game_grid_save.py $(BUILD)/libvoxela.so
@@ -69,7 +71,7 @@ clean:
 # runtime validation. Prefix symbols so the shim can expose the same API.
 ifeq ($(TARGET),linux)
 WIN_ABI_OBJECTS = $(patsubst %.asm,$(BUILD)/win-abi/%.o,$(CORE))
-$(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc
+$(BUILD)/win-abi/%.o: %.asm include/abi.inc include/world.inc include/cache.inc include/stream.inc include/inventory.inc include/inventory_impl.inc include/container.inc
 	@mkdir -p $(@D)
 	$(NASM) $(FLAGS) -DWINDOWS_ABI=1 -f elf64 $< -o $@.raw
 	objcopy --prefix-symbols=win_ $@.raw $@
@@ -87,6 +89,8 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/walk_save.py $<
 	python3 tests/inventory36.py $<
 	python3 tests/game36_save.py $<
+	python3 tests/containers.py $<
+	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
 	python3 tests/ui_layout.py $<
 	python3 tests/game_grid_save.py $<

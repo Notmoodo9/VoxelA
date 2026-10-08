@@ -620,3 +620,16 @@ Crafting tables and shaped3×3 tool recipes remain pending; existing tool recipe
 still work through the ingredient-required recipe browser.
 
 The latest [confirmed game design decisions](docs/game-design-decisions.md) specify physical ingredient drops on inventory closure, table-owned grids, difficulty/death rules, Creative flight, world selection/autosaving, presentation, creatures and default16/64-chunk detail/horizon distances. These future requirements do not change the current implemented limits.
+
+### Chest storage core and better recipe-book controls
+
+Recipe-book selections for planks/sticks now arrange owned ingredients and open
+the2×2 grid. Taking the result consumes ingredients. Unavailable recipes display
+exact missing item types/counts. A shared immutable registry drives shaped
+previews and requirements and can match3×3 pickaxe shapes for future tables.
+
+The assembly container core supports27-slot chest records,54-slot adjacent-pair
+views, cursor interactions, partial two-way transfers, atomic transfer-all and
+checked container serialization. These CPU systems are tested; playable chest
+blocks, UI, drops and inclusion in world saves are not integrated yet. Gameplay
+format4 remains unchanged. See [exact contracts, tests and next steps](docs/containers-and-recipes.md).

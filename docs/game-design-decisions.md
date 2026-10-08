@@ -70,6 +70,16 @@ Spectator movement; and Extreme rules remain to be defined.
 - Requested hostile/fantasy roster includes skeletons, zombies and fantasy mobs.
   Exact fantasy species, drops, spawning, behavior and combat stats remain open.
 
+## Chests and improved crafting
+
+The user requests chests and a better crafting system. Start with validated
+27-slot chest storage, safe two-way transfers and persisted block identity, then
+connect craftable/placeable chests and their UI to world saves. Two adjacent
+chests combine into54 slots. Breaking drops the chest and all
+stored items. Locked recipes remain visible with their missing ingredients.
+Unify shaped recipe definitions and make recipe-book selections arrange owned
+ingredients. See the detailed task list in the development plan.
+
 ## Building and liquids
 
 - Include directional blocks, slabs, stairs, fences, doors, glass, water and lava.

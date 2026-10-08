@@ -5,6 +5,9 @@ ingredients onto the ground when the inventory closes. The retained-grid behavio
 described here remains the current implementation until physical drops are ready.
 See [confirmed design decisions](game-design-decisions.md).
 
+The later [container/recipe milestone](containers-and-recipes.md) changes basic
+recipe-book clicks to arrange ingredients and adds missing-ingredient counts.
+
 This session implements these 28 observable behaviors in the assembly game:
 
 1. A compact centered inventory with three storage rows above a separated hotbar.

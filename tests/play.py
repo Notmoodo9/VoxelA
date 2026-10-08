@@ -118,13 +118,21 @@ try:
  assert step(1,100)==0 and look(100,100)==0 and getplayer(pose)==0 and bytes(pose)==menu_pose,'menu did not pause player'
  assert apply(0)==0 and mine(1,100)==0
  assert menutab()==0
+ recipe_image=capture();assert recipe_image!=panel,'recipe requirements panel absent'
+ if len(sys.argv)>5:png(sys.argv[5],recipe_image)
  for x,y in [(640,340),(31,340),(90,340),(40,201),(10,10)]:assert menuclick(x,y)==0,'menu gap hit'
  assert menuclick(40,132)==0 and getinventory(menu_inventory)==0 and bytes(menu_inventory)==fresh_inventory,'locked recipe consumed resources'
  # Move dirt to the last slot, craft using items spread across slots.
  assert menuclick(40,340)==1 and menuclick(552,340)==1
  assert getinventory(menu_inventory)==0 and struct.unpack_from('<HHHH',menu_inventory,64)==(2,32,0,0)
- assert menuclick(50,220)==1 and menuclick(50,220)==1
- assert menuclick(50,178)==1 and menuclick(50,136)==1
+ # Recipe selection arranges ingredients; only the explicit result consumes.
+ def book_craft(y):
+  assert getinventory(menu_inventory)==0;before=bytes(menu_inventory)
+  assert menuclick(50,y)==1 and getgrid(grid)==0 and getinventory(menu_inventory)==0
+  assert sum(struct.unpack_from('<HH',menu_inventory,i*8)[1] for i in range(36) if struct.unpack_from('<H',menu_inventory,i*8)[0]==(8 if y==220 else 9))==sum(struct.unpack_from('<HH',before,i*8)[1] for i in range(36) if struct.unpack_from('<H',before,i*8)[0]==(8 if y==220 else 9)),'recipe selection created output'
+  assert menuaction(464,332,2)==1 and menutab()==0
+ book_craft(220);book_craft(220);book_craft(178)
+ assert menuclick(50,136)==1
  assert getinventory(menu_inventory)==0
  assert struct.unpack_from('<HHHH',menu_inventory,24)==(10,1,60,0),'click crafting failed'
  # A whole tool moves with its durability; closing a selected source loses none.

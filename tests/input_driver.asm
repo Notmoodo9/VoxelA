@@ -3,7 +3,14 @@
 bits 64
 default rel
 section .text
+global SDL_GetModState
 global SDL_GetTicks, SDL_GetKeyboardState, SDL_PollEvent, SDL_Delay, SDL_SetRelativeMouseMode
+SDL_GetModState:
+ xor eax,eax
+ cmp byte [recipe_shift],0
+ je .done
+ mov eax,3
+.done: ret
 SDL_GetTicks:
  add dword [ticks],10
  mov eax,[ticks]
@@ -124,7 +131,38 @@ SDL_PollEvent:
  jmp .recipe_click
 .pickaxe:
  mov r11d,429
+ jmp .simple_recipe_click
 .recipe_click:
+ cmp byte [recipe_stage],0
+ je .arrange
+ cmp byte [recipe_stage],1
+ je .take_result
+ ; Return to the book only after taking the actual shaped result.
+ mov byte [recipe_stage],0
+ mov byte [recipe_shift],0
+ mov r11d,9
+ jmp .craft_key
+.arrange:
+ call .clear
+ mov dword [rdi],0x401
+ mov byte [rdi+16],1
+ mov dword [rdi+20],100
+ mov [rdi+24],r11d
+ mov byte [recipe_stage],1
+ mov byte [recipe_shift],0
+ mov eax,1
+ ret
+.take_result:
+ call .clear
+ mov dword [rdi],0x401
+ mov byte [rdi+16],1
+ mov dword [rdi+20],580 ; virtual464
+ mov dword [rdi+24],184 ; virtual332
+ mov byte [recipe_stage],2
+ mov byte [recipe_shift],1
+ mov eax,1
+ ret
+.simple_recipe_click:
  call .clear
  mov dword [rdi],0x401
  mov byte [rdi+16],1
@@ -204,5 +242,7 @@ section .bss align=16
 ticks: resd 1
 phase: resq 1
 frames: resq 1
+recipe_stage: resb 1
+recipe_shift: resb 1
 keys: resb 512
 section .note.GNU-stack noalloc noexec nowrite progbits

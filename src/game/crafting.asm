@@ -1,5 +1,6 @@
 %include "abi.inc"
 section .text
+extern recipe_match
 extern inventory36_valid, inventory36_init, inventory36_click, inventory36_add
 ; CraftState336 = Inventory304 + four Slot8, row-major top-left first.
 ; Reuse the inventory validator for each grid record in a bounded scratch bag.
@@ -30,41 +31,11 @@ FRAME craft_preview,56
  call craft_valid
  test rax,rax
  jnz .bad
- mov r10,[rsp+32]
- xor ecx,ecx
- xor r8d,r8d
- xor r9d,r9d
-.scan:
- movzx eax,word [r10+304+rcx*8]
- test eax,eax
- jz .next
- inc r8d
- mov r9d,eax
-.next:
- inc ecx
- cmp ecx,4
- jb .scan
- cmp r8d,1
- jne .sticks
- cmp r9d,5
- jne .none
- mov eax,(4<<16)|8
- jmp .done
-.sticks:
- cmp r8d,2
- jne .none
- cmp word [r10+304],8
- jne .right
- cmp word [r10+320],8
- je .matched
-.right:
- cmp word [r10+312],8
- jne .none
- cmp word [r10+328],8
- jne .none
-.matched: mov eax,(4<<16)|9
- jmp .done
-.none: xor eax,eax
+ mov A0,[rsp+32]
+ add A0,304
+ mov A1,2
+ lea A2,[rsp+40]
+ call recipe_match
  jmp .done
 .bad: mov rax,-1
 .done:
@@ -219,9 +190,12 @@ FRAME craft_take,408
  je .cursor_empty
  cmp word [rsp+360],ax
  jne .none
- cmp word [rsp+362],60
+ movzx edx,word [rsp+50]
+ mov eax,64
+ sub eax,edx
+ cmp word [rsp+362],ax
  ja .none
- add word [rsp+362],4
+ add word [rsp+362],dx
  jmp .consume
 .cursor_empty:
  mov [rsp+360],rax
@@ -230,8 +204,10 @@ FRAME craft_take,408
  lea A0,[rsp+64]
  movzx r10d,word [rsp+48]
  mov A1,r10
- mov A2,4
- xor A3,A3
+ movzx r10d,word [rsp+50]
+ mov A2,r10
+ movzx r10d,word [rsp+52]
+ mov A3,r10
  call inventory36_add
  cmp rax,1
  jne .none
@@ -439,4 +415,19 @@ FRAME craft_collect,40
 .done:
 END_FRAME craft_collect,40
 
+; Read-only autofill availability uses the same transaction as execution.
+FRAME craft_can_fill,392
+ mov [rsp+32],A1
+ mov r10,A0
+ xor ecx,ecx
+.copy:
+ mov rax,[r10+rcx]
+ mov [rsp+48+rcx],rax
+ add ecx,8
+ cmp ecx,336
+ jb .copy
+ lea A0,[rsp+48]
+ mov A1,[rsp+32]
+ call craft_fill
+END_FRAME craft_can_fill,392
 ELF_STACK

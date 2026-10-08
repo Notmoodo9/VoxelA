@@ -75,6 +75,39 @@ Player 2×2 log/plank/stick crafting and format4 migration are implemented; see
 - [ ] Render storage, hotbar, cursor, grid and output clearly, with item counts,
       tool wear and valid/unavailable recipe feedback.
 
+## 2a. Better crafting and chests
+
+- [x] Shared immutable shaped registry for2×2/3×3 matching and missing ingredients.
+- [ ] Migrate remaining legacy bulk definitions and complete shared3×3 autofill
+      and result execution at usable crafting tables.
+- [x] Basic recipe-book selection arranges owned ingredients and shows missing
+      ingredient amounts without creating output.
+- [ ] Complete this behavior for table recipes and acquired/locked recipe state.
+- [ ] Track recipe acquisition/unlocks, persist them and expose their state clearly.
+- [ ] Make repeated crafting and insufficient output capacity preserve all ownership.
+- [x] CPU chest storage uses validated Slot8 records with27 slots per chest.
+      Adjacent chests combine into54 slots, as confirmed by the user; define
+      pairing/ownership rules and do not assume world integration is implemented.
+- [x] CPU left/right cursor interactions and partial Shift transfers in both
+      directions preserve tool durability and stack limits. Paired views expose54 slots.
+- [ ] Connect these transactions to a playable container/drag UI.
+- [ ] Store each chest by world/block identity, independent of residency/menu state.
+- [x] Versioned checked container serialization and atomic decode primitives.
+- [ ] Integrate these records into world saves and legacy migration.
+- [ ] Register craftable chest/table items, block mappings, original textures,
+      placement, reach checks, open-container UI and context invalidation.
+- [ ] Breaking a nonempty container must transfer its contents to ground drops
+      exactly once; retain its contents if the transfer cannot complete.
+- [ ] Implement physical item drops/pickup before changing player-grid closure
+      to the user's requested ejection behavior.
+- [ ] Test conservation, partial/full destinations, invalid data, negative
+      coordinates, close/reopen, chunk eviction, saves and container destruction
+      under both ABIs and in the actual game where integrated.
+
+Reusable container ownership/transaction/save primitives and shared shaped-recipe
+matching are implemented; see [container and recipe contracts](containers-and-recipes.md).
+World placement and UI need the remaining registry/save integration; CPU primitives alone are not playable chests.
+
 ## 3. Configurable streaming and distant terrain
 
 A radius256 square view includes513×513 =263,169 chunk columns. Expanding every

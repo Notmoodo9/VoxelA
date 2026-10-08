@@ -22,6 +22,8 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
+extern recipe_missing
+extern craft_can_fill
 extern craft_collect, craft_preview, craft_click, craft_take, craft_repeat, craft_fill, craft_clear
 extern inventory_ui_position, inventory_ui_slot, inventory_ui_metrics
 extern inventory_can_craft, inventory_count, inventory_transfer
@@ -994,8 +996,20 @@ FRAME play_menu_action,72
  jae .ignored
  cmp rax,4
  jae .ignored
+ cmp rax,2
+ jb .book_fill
  mov A0,rax
  call play_craft
+ jmp .done
+.book_fill:
+ mov A1,rax
+ lea A0,[inventory]
+ call craft_fill
+ cmp rax,1
+ jne .done
+ mov qword [menu_page],0
+ lea r10,[arranged_text]
+ mov [status],r10
  jmp .done
 .grid_buttons:
  cmp qword [rsp+48],0
@@ -1464,7 +1478,7 @@ FRAME play_menu_hud,72
  call menu_white
  cmp qword [menu_page],0
  je .grid_labels
- lea A0,[menu_title]
+ lea A0,[menu_book_title]
  mov A1,32
  mov A2,426
  call hud_text
@@ -1706,8 +1720,18 @@ FRAME play_menu_hud,72
 .recipe:
  mov A1,[rsp+32]
  lea A0,[inventory]
+ cmp A1,2
+ jae .bulk_availability
+ call craft_can_fill
+ jmp .available
+.bulk_availability:
  call inventory_can_craft
+.available:
  mov [rsp+48],rax
+ lea A0,[inventory]
+ mov A1,[rsp+32]
+ lea A2,[menu_missing]
+ call recipe_missing
  mov rax,[rsp+32]
  imul rax,42
  mov r10,206
@@ -1737,10 +1761,22 @@ FRAME play_menu_hud,72
  mov A2,[rsp+40]
  add A2,12
  call hud_text
+ cmp dword [inventory+292],1
+ je .ordinary_badge
+ cmp qword [rsp+48],1
+ je .ordinary_badge
+ mov eax,[menu_missing+4]
+ add eax,[menu_missing+12]
+ test eax,eax
+ jnz .missing_items
+.ordinary_badge:
  lea A0,[menu_locked]
  cmp qword [rsp+48],1
  jne .availability
  lea A0,[menu_ready]
+ cmp qword [rsp+32],2
+ jae .availability
+ lea A0,[menu_arrange]
 .availability:
  cmp dword [inventory+292],1
  jne .badge
@@ -1750,6 +1786,40 @@ FRAME play_menu_hud,72
  mov A2,[rsp+40]
  add A2,12
  call hud_text
+ jmp .next_recipe
+.missing_items:
+ mov qword [rsp+56],0
+.missing_kind:
+ mov rax,[rsp+56]
+ lea r10,[menu_missing]
+ cmp dword [r10+rax*8+4],0
+ je .next_missing
+ mov ecx,[r10+rax*8]
+ lea r10,[material_names]
+ movsxd rcx,dword [r10+rcx*4]
+ lea A0,[r10+rcx]
+ imul rax,132
+ add rax,300
+ mov [rsp+64],rax
+ mov A1,rax
+ mov A2,[rsp+40]
+ add A2,12
+ call hud_text
+ mov rax,[rsp+56]
+ lea r10,[menu_missing]
+ mov eax,[r10+rax*8+4]
+ call hud_number
+ lea A0,[number_text]
+ mov A1,[rsp+64]
+ add A1,84
+ mov A2,[rsp+40]
+ add A2,12
+ call hud_text
+.next_missing:
+ inc qword [rsp+56]
+ cmp qword [rsp+56],2
+ jb .missing_kind
+.next_recipe:
  inc qword [rsp+32]
  cmp qword [rsp+32],4
  jb .recipe
@@ -2371,17 +2441,20 @@ storage_label: db 'STORAGE',0
 fill_wood_label: db 'FILL WOOD',0
 fill_sticks_label: db 'FILL STICKS',0
 clear_grid_label: db 'CLEAR GRID',0
+menu_book_title: db 'RECIPE BOOK',0
 menu_title: db 'INVENTORY',0
 menu_help: db 'LEFT MOVE RIGHT SPLIT SHIFT QUICK TAB RECIPES',0
-menu_items: db 'STORAGE - HOTBAR BELOW',0
-menu_recipes: db 'RECIPES - CLICK TO CRAFT ONE BATCH',0
+menu_items: db 'HOTBAR',0
+menu_recipes: db 'RECIPES - MISSING INGREDIENTS SHOWN',0
+arranged_text: db 'INGREDIENTS ARRANGED - TAKE THE RESULT',0
+menu_arrange: db 'ARRANGE',0
 menu_ready: db 'CRAFT',0
-menu_locked: db 'NOT READY',0
+menu_locked: db 'NO SPACE',0
 menu_creative: db 'SURVIVAL ONLY',0
-menu_recipe0: db '1 WOOD MAKES 4 PLANKS',0
-menu_recipe1: db '2 PLANKS MAKE 4 STICKS',0
-menu_recipe2: db '3 PLANKS 2 STICKS - WOOD PICK',0
-menu_recipe3: db '3 STONE 2 STICKS - STONE PICK',0
+menu_recipe0: db '4 PLANKS',0
+menu_recipe1: db '4 STICKS',0
+menu_recipe2: db 'WOOD PICK',0
+menu_recipe3: db 'STONE PICK',0
 menu_wood: db 'WOOD',0
 menu_planks: db 'PLANKS',0
 menu_sticks: db 'STICKS',0
@@ -2470,6 +2543,7 @@ menu_open: resq 1
 menu_drag_slot: resq 1
 menu_page: resq 1
 menu_result: resq 1
+menu_missing: resd 4
 menu_hover: resq 1
 menu_metrics: resd 3
 menu_pointer_x: resq 1
