@@ -3,6 +3,7 @@
 section .text
 extern SDL_GL_GetProcAddress, puts
 extern generate_section, mesh_build, faces_expand, camera_init, camera_step, camera_resize
+extern snapshot_encode, snapshot_decode, file_save, file_load
 extern cache_init, cache_insert, cache_find, cache_get, cache_edit
 extern world_raycast, ray_box_interval, camera_ray
 ; Single context/render-thread owner. Embedded GLSL, static bounded demo buffers.
@@ -168,6 +169,16 @@ FRAME terrain_init,120
  inc qword [rsp+64]
  cmp qword [rsp+64],4
  jb .section
+ ; Preserve generated baseline separately; only overrides are serialized.
+ lea r10,[sections]
+ lea r11,[baseline_sections]
+ xor ecx,ecx
+.baseline:
+ mov rax,[r10+rcx]
+ mov [r11+rcx],rax
+ add ecx,8
+ cmp ecx,32768
+ jb .baseline
  mov A0,1
  lea A1,[vao]
  GLCALL glGenVertexArrays
@@ -696,6 +707,167 @@ FRAME terrain_apply_edit,56
  xor eax,eax
 .done:
 END_FRAME terrain_apply_edit,56
+ ; Caller owns output; prototype format is specific to this seeded slab.
+FRAME terrain_snapshot_export,40
+ mov A3,A1
+ mov A2,A0
+ lea A0,[sections]
+ lea A1,[baseline_sections]
+ call snapshot_encode
+END_FRAME terrain_snapshot_export,40
+; Validate into scratch, then commit all changed sections as one transaction.
+; Error leaves live blocks, revisions, selection and meshes unchanged.
+FRAME terrain_snapshot_import,56
+ lea A2,[baseline_sections]
+ lea A3,[staged_sections]
+ call snapshot_decode
+ test rax,rax
+ jnz .done
+ xor r10d,r10d ; section ordinal
+ xor r9d,r9d ; changed mask
+.sections:
+ mov rax,r10
+ shl rax,13
+ lea r11,[sections]
+ add r11,rax
+ lea r8,[staged_sections]
+ add r8,rax
+ xor ecx,ecx
+.compare:
+ mov rax,[r11+rcx]
+ cmp rax,[r8+rcx]
+ jne .changed
+ add ecx,8
+ cmp ecx,8192
+ jb .compare
+ jmp .next
+.changed:
+ mov rax,r10
+ shl rax,6
+ lea r11,[world_entries]
+ cmp qword [r11+rax+40],-1
+ je .bad
+ bts r9,r10
+.next:
+ inc r10
+ cmp r10,4
+ jb .sections
+ test r9,r9
+ jz .success
+ ; No calls in commit; single render-thread owner guarantees no lost edit.
+ lea r10,[sections]
+ lea r11,[staged_sections]
+ xor ecx,ecx
+.copy:
+ mov rax,[r11+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,32768
+ jb .copy
+ lea r10,[world_entries]
+ xor ecx,ecx
+.revisions:
+ bt r9,rcx
+ jnc .mark_mesh
+ inc qword [r10+40]
+.mark_mesh:
+ ; All four meshes rebuilt, including neighbors of changed sections.
+ mov qword [r10+56],1
+ add r10,64
+ inc ecx
+ cmp ecx,4
+ jb .revisions
+ mov qword [selection_valid],0
+ mov qword [needs_rebuild],1
+.success:
+ xor eax,eax
+ jmp .done
+.bad:
+ mov rax,-1
+.done:
+END_FRAME terrain_snapshot_import,56
+; Manual save/load path chosen by UI. Save revisions advance only on success.
+FRAME terrain_save,56
+ mov [rsp+40],A0
+ lea A0,[save_buffer]
+ mov A1,131136
+ call terrain_snapshot_export
+ test rax,rax
+ js .done
+ mov A2,rax
+ lea A1,[save_buffer]
+ mov A0,[rsp+40]
+ call file_save
+ test rax,rax
+ jnz .done
+ call terrain_mark_saved
+ jmp .done
+.done:
+END_FRAME terrain_save,56
+; Single-thread owner: no asynchronous edits can race a successful save.
+global terrain_mark_saved
+terrain_mark_saved:
+ lea r10,[world_entries]
+ mov ecx,4
+.saved:
+ mov r11,[r10+40]
+ mov [r10+48],r11
+ add r10,64
+ dec ecx
+ jnz .saved
+ xor eax,eax
+ ret
+FRAME terrain_load,40
+ lea A1,[save_buffer]
+ mov A2,131136
+ call file_load
+ test rax,rax
+ js .done
+ mov A1,rax
+ lea A0,[save_buffer]
+ call terrain_snapshot_import
+ test rax,rax
+ jnz .done
+ call terrain_mark_saved
+.done:
+END_FRAME terrain_load,40
+ ; Read-only status adapters for HUD/tests; no serialized pointers or revisions.
+global terrain_has_unsaved_changes
+terrain_has_unsaved_changes:
+ lea r10,[world_entries]
+ mov ecx,4
+.loop:
+ mov rax,[r10+40]
+ cmp rax,[r10+48]
+ jne .dirty
+ add r10,64
+ dec ecx
+ jnz .loop
+ xor eax,eax
+ ret
+.dirty:
+ mov eax,1
+ ret
+; terrain_section_state(index,out[3]uint64)->0 or -1. Revision/saved/mesh dirty.
+global terrain_section_state
+terrain_section_state:
+ cmp A0,4
+ jae .bad
+ mov rax,A0
+ shl rax,6
+ lea r10,[world_entries]
+ add r10,rax
+ mov rax,[r10+40]
+ mov [A1],rax
+ mov rax,[r10+48]
+ mov [A1+8],rax
+ mov rax,[r10+56]
+ mov [A1+16],rax
+ xor eax,eax
+ ret
+.bad:
+ mov rax,-1
+ ret
 ; Shared camera adapters for the UI and graphics tests.
 FRAME terrain_camera_step,40
  mov A2,A1
@@ -756,6 +928,9 @@ pick_interval: resb 16
 outline_vao: resd 1
 outline_vbo: resd 1
 outline_vertices: resb 24*24
+baseline_sections: resb 32768
+staged_sections: resb 32768
+save_buffer: resb 131136
 sections: resb 4*8192
 faces: resb 24576*8
 vertices: resb 589824*24

@@ -33,6 +33,8 @@ SHIM ray_box_interval
 SHIM camera_ray
 SHIM mix64
 SHIM fnv1a
+SHIM snapshot_encode
+SHIM snapshot_decode
 SHIM seed_numeric
 SHIM floor_section
 SHIM local_axis

@@ -1,2 +1,6 @@
 /build/
 __pycache__/
+
+# Runtime demo saves are local user data.
+voxela-demo.vxa
+voxela-demo.vxa.tmp

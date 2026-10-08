@@ -1,5 +1,6 @@
 %include "abi.inc"
 section .text
+extern snapshot_encode, snapshot_decode
 extern world_raycast
 extern camera_init, camera_step, camera_resize
 extern cache_init, cache_insert, cache_get, cache_edit, mesh_build, faces_expand
@@ -197,6 +198,37 @@ FRAME main,40
  CHECK qword [test_hit+8],64
  CHECK qword [test_hit+24],6
  CHECK qword [test_hit+64],1
+ mov word [snapshot_current],1
+ mov word [snapshot_current+8192],6
+ lea A0,[snapshot_current]
+ lea A1,[snapshot_baseline]
+ lea A2,[snapshot_bytes]
+ mov A3,80
+ call snapshot_encode
+ CHECK rax,80
+ CHECK dword [snapshot_bytes+20],2
+ lea A0,[snapshot_bytes]
+ mov A1,80
+ lea A2,[snapshot_baseline]
+ lea A3,[snapshot_restored]
+ call snapshot_decode
+ CHECK rax,0
+ CHECK word [snapshot_restored],1
+ CHECK word [snapshot_restored+8192],6
+ xor byte [snapshot_bytes],1
+ lea A0,[snapshot_bytes]
+ mov A1,80
+ lea A2,[snapshot_baseline]
+ lea A3,[snapshot_restored]
+ call snapshot_decode
+ CHECK rax,-1
+ CHECK word [snapshot_restored],1
+ lea A0,[snapshot_current]
+ lea A1,[snapshot_baseline]
+ lea A2,[snapshot_bytes]
+ mov A3,79
+ call snapshot_encode
+ CHECK rax,-2
  lea A0,[pass]
  call puts
  xor eax,eax
@@ -208,7 +240,7 @@ FRAME main,40
 .done:
 END_FRAME main,40
 section .rdata
-pass: db 'PASS: 47 assembly engine checks',0
+pass: db 'PASS: 55 assembly engine checks',0
 fail: db 'FAIL: assembly engine check',0
 max_seed: db '18446744073709551615',0
 overflow_seed: db '18446744073709551616',0
@@ -232,4 +264,8 @@ faces: resb 96
 expanded_vertices: resb 144
 camera: resb 32
 test_hit: resb 72
+snapshot_baseline: resb 32768
+snapshot_current: resb 32768
+snapshot_restored: resb 32768
+snapshot_bytes: resb 80
 ELF_STACK

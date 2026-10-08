@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -50,6 +50,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/vertices.py $(BUILD)/libvoxela.so
 	python3 tests/camera.py $(BUILD)/libvoxela.so
 	python3 tests/raycast.py $(BUILD)/libvoxela.so
+	python3 tests/snapshot.py $(BUILD)/libvoxela.so
 endif
 clean:
 	rm -rf build
@@ -71,18 +72,20 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/vertices.py $<
 	python3 tests/camera.py $<
 	python3 tests/raycast.py $<
+	python3 tests/snapshot.py $<
 endif
 
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
 SDL_LIBS ?= -lSDL2
 .PHONY: window
+IO_OBJECT = $(BUILD)/src/platform/save_file.o
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
-$(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o
+$(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/src/render/terrain.o $(IO_OBJECT)
 	$(LINKER) $(LDFLAGS) $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 
 ifeq ($(TARGET),linux)
-$(BUILD)/libterrain.so: $(OBJECTS) $(BUILD)/src/render/terrain.o
+$(BUILD)/libterrain.so: $(OBJECTS) $(BUILD)/src/render/terrain.o $(IO_OBJECT)
 	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 .PHONY: graphics-reference
 graphics-reference: $(BUILD)/libterrain.so
@@ -92,3 +95,18 @@ endif
 .PHONY: packaging-test
 packaging-test:
 	python3 tests/packaging.py
+
+# Portable codec and real filesystem adapter; also run natively in Windows CI.
+ifeq ($(TARGET),windows)
+SAVE_LIBRARY = $(BUILD)/save_tests.dll
+SAVE_LINK_FLAGS = -shared
+else
+SAVE_LIBRARY = $(BUILD)/libsave_tests.so
+SAVE_LINK_FLAGS = -shared -Wl,-Bsymbolic -Wl,-z,noexecstack
+endif
+$(SAVE_LIBRARY): $(BUILD)/src/core/hash.o $(BUILD)/src/world/snapshot.o $(IO_OBJECT)
+	$(LINKER) $(SAVE_LINK_FLAGS) $^ -o $@
+.PHONY: save-reference
+save-reference: $(SAVE_LIBRARY)
+	python3 tests/snapshot.py $<
+	python3 tests/save_file.py $<

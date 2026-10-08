@@ -4,6 +4,7 @@ extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
 extern SDL_GetMouseState, SDL_GetWindowSize
+extern terrain_save, terrain_load
 extern terrain_pick, terrain_apply_edit, terrain_select_block
 extern SDL_GetKeyboardState
 extern terrain_camera_step, terrain_camera_resize
@@ -168,6 +169,12 @@ FRAME main,120
  jne .loop
  cmp dword [event+20],27
  je .success
+ cmp byte [event+13],0 ; ignore repeated save/load keydown
+ jne .loop
+ cmp dword [event+20],1073741886 ; SDL SDLK_F5
+ je .save
+ cmp dword [event+20],1073741890 ; SDL SDLK_F9
+ je .load_save
  mov eax,[event+20]
  sub eax,49
  cmp eax,5
@@ -175,6 +182,37 @@ FRAME main,120
  inc eax
  mov A0,rax
  call terrain_select_block
+ jmp .loop
+.save:
+ lea A0,[save_path]
+ call terrain_save
+ test rax,rax
+ jz .save_ok
+ cmp rax,-2
+ je .save_uncertain
+ lea A0,[save_fail]
+ call puts
+ jmp .loop
+.save_uncertain:
+ lea A0,[save_warning]
+ call puts
+ jmp .loop
+.save_ok:
+ lea A0,[save_pass]
+ call puts
+ jmp .loop
+.load_save:
+ lea A0,[save_path]
+ call terrain_load
+ test rax,rax
+ jz .load_ok
+ lea A0,[load_fail]
+ call puts
+ jmp .loop
+.load_ok:
+ mov byte [click_pending],0
+ lea A0,[load_pass]
+ call puts
  jmp .loop
 .render:
  call SDL_GetTicks
@@ -391,8 +429,14 @@ FRAME main,120
  mov rax,[rsp+112]
 END_FRAME main,120
 section .rdata
+save_path: db 'voxela-demo.vxa',0
+save_pass: db 'Saved block edits to voxela-demo.vxa.',0
+load_pass: db 'Loaded block edits from voxela-demo.vxa.',0
+save_fail: db 'Save failed; edits remain in memory. Check writable directory and existing .tmp.',0
+save_warning: db 'Save replaced, but directory sync failed; durability is uncertain. Edits remain dirty.',0
+load_fail: db 'Load failed (missing/unreadable/incompatible/corrupt save); current terrain preserved.',0
 smoke_arg: db '--smoke',0
-title: db 'VoxelA: WASD move, Space/Ctrl height, Q/E turn, +/- zoom, R reset, mouse break/place, 1-6 blocks, Esc exit',0
+title: db 'VoxelA: WASD move, Space/Ctrl height, Q/E turn, +/- zoom, R reset, mouse break/place, 1-6 blocks, F5 save/F9 load, Esc exit',0
 usage: db 'Usage: voxela-window [--smoke]',0
 startup_fail: db 'SDL/OpenGL startup failed (requires OpenGL 3.3 core).',0
 pixel_fail: db 'FAIL: OpenGL frame/readback check',0
