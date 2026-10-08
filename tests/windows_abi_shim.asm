@@ -195,4 +195,21 @@ SHIM slot_valid
 SHIM recipe_catalog_info
 SHIM recipe_catalog_match
 
+SHIM inventory2_item_limit
+SHIM inventory2_init
+SHIM inventory2_valid
+SHIM inventory2_add
+SHIM inventory2_craft
+SHIM inventory2_consume
+SHIM inventory2_wear
+SHIM inventory2_mine_duration
+SHIM inventory2_can_craft
+SHIM inventory2_count
+SHIM inventory2_transfer
+SHIM inventory2_click
+SHIM inventory2_quick
+SHIM grid_craft_take
+SHIM grid_craft_repeat
+SHIM grid_craft_clear
+SHIM grid_craft_fill
 section .note.GNU-stack noalloc noexec nowrite progbits

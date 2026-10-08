@@ -649,3 +649,9 @@ An opt-in registry2 CPU catalog also defines stackable chest/table items, explic
 item-to-block mappings, and their shaped recipes, while keeping registry1 saves
 and gameplay unchanged. Placement, container menus and combined world-save
 integration remain pending. [Registry contracts and integration gates](docs/versioned-registry.md).
+
+Registry2 now has tested36-slot inventory operations and atomic2×2/3×3 grid
+crafting: take/repeat results, return grids and recipe-book autofill. Chest/table
+stacks use resource rules; tool outputs preserve wear. These opt-in CPU APIs
+are not wired into playable container blocks or world saves yet.
+[Inventory/grid contracts](docs/inventory2-grid-crafting.md).

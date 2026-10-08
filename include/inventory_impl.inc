@@ -1,16 +1,38 @@
+; Shared v1/v2 inventory operations. v2 callers opt in explicitly.
+%ifndef INV_REGISTRY
+ %define INV_REGISTRY 1
+%endif
+%if INV_REGISTRY = 2
+ %define INV_ITEM_MAX 13
+ extern slot_valid, item_info
+%else
+ %define INV_ITEM_MAX 11
+%endif
+%macro JUMP_TOOL 2
+ cmp %1,10
+ jb %%not_tool
+ cmp %1,11
+ jbe %2
+%%not_tool:
+%endmacro
+%macro JUMP_RESOURCE 2
+ cmp %1,10
+ jb %2
+ cmp %1,11
+ ja %2
+%endmacro
 section .text
 ; Stateless item registry, no item0/bedrock7. Tools stack1, resources stack64.
 global item_limit
 item_limit:
  cmp A0,1
  jb .bad
- cmp A0,11
+ cmp A0,INV_ITEM_MAX
  ja .bad
  cmp A0,7
  je .bad
  mov eax,64
- cmp A0,10
- jb .done
+ JUMP_RESOURCE A0,.done
  mov eax,1
 .done: ret
 .bad: mov rax,-1
@@ -29,6 +51,33 @@ inventory_init:
  mov dword [r10+8],(8<<16)|5
  xor eax,eax
  ret
+%if INV_REGISTRY = 2
+FRAME inventory_valid,56
+ mov [rsp+32],A0
+ cmp dword [A0+INV_SELECTED],9
+ jae .bad
+ cmp dword [A0+INV_MODE],1
+ ja .bad
+ mov qword [rsp+40],0
+.slot:
+ mov A0,[rsp+32]
+ add A0,[rsp+40]
+ mov A1,2
+ call slot_valid
+ test rax,rax
+ jnz .bad
+ add qword [rsp+40],8
+ cmp qword [rsp+40],INV_SLOT_BYTES
+ jb .slot
+ jne .good
+ mov qword [rsp+40],INV_SLOT_BYTES+8
+ jmp .slot
+.good: xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME inventory_valid,56
+%else
 global inventory_valid
 inventory_valid:
  mov r10,A0
@@ -45,7 +94,7 @@ inventory_valid:
  jne .bad
  jmp .next
 .occupied:
- cmp eax,11
+ cmp eax,INV_ITEM_MAX
  ja .bad
  cmp eax,7
  je .bad
@@ -89,13 +138,13 @@ inventory_valid:
  ret
 .bad: mov rax,-1
  ret
+%endif
 ; Internal nontransactional add to already validated scratch state.
 ; Registers r10=state, r8=item, r9=count, edx=durability. Returns1/-2.
 add_raw:
  xor ecx,ecx
 .merge:
- cmp r8,10
- jae .empty_start
+ JUMP_TOOL r8,.empty_start
  cmp [r10+rcx],r8w
  jne .merge_next
  movzx eax,word [r10+rcx+2]
@@ -117,8 +166,7 @@ add_raw:
  cmp qword [r10+rcx],0
  jne .empty_next
  mov eax,64
- cmp r8,10
- jb .capacity
+ JUMP_RESOURCE r8,.capacity
  mov eax,1
 .capacity:
  cmp rax,r9
@@ -153,8 +201,7 @@ FRAME inventory_add,INV_ADD_FRAME
  jb .bad
  cmp qword [rsp+48],INV_MAX_ADD
  ja .bad
- cmp qword [rsp+40],10
- jae .tool
+ JUMP_TOOL qword [rsp+40],.tool
  cmp qword [rsp+56],0
  jne .bad
  jmp .copy
@@ -268,8 +315,7 @@ FRAME inventory_craft,INV_CRAFT_FRAME
  mov r8d,[r11+16]
  mov r9d,[r11+20]
  xor edx,edx
- cmp r8,10
- jb .add
+ JUMP_RESOURCE r8,.add
  mov edx,60
  cmp r8,10
  je .add
@@ -295,6 +341,34 @@ FRAME inventory_craft,INV_CRAFT_FRAME
 .done:
 END_FRAME inventory_craft,INV_CRAFT_FRAME
 ; Called only after a successful placement, selected resource guaranteed present.
+%if INV_REGISTRY = 2
+FRAME inventory_consume,72
+ mov [rsp+32],A0
+ call inventory_valid
+ test rax,rax
+ jnz .bad
+ mov r10,[rsp+32]
+ mov eax,[r10+INV_SELECTED]
+ lea r10,[r10+rax*8]
+ mov [rsp+40],r10
+ movzx A0,word [r10]
+ mov A1,2
+ lea A2,[rsp+48]
+ call item_info
+ test rax,rax
+ jnz .bad
+ test dword [rsp+48],2
+ jz .bad
+ mov r10,[rsp+40]
+ dec word [r10+2]
+ jnz .good
+ mov qword [r10],0
+.good: mov eax,1
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME inventory_consume,72
+%else
 global inventory_consume
 inventory_consume:
  mov r10,A0
@@ -315,6 +389,7 @@ inventory_consume:
  ret
 .bad: mov rax,-1
  ret
+%endif
 global inventory_wear
 inventory_wear:
  mov r10,A0
@@ -386,7 +461,7 @@ global inventory_count
 inventory_count:
  cmp A1,1
  jb .none
- cmp A1,11
+ cmp A1,INV_ITEM_MAX
  ja .none
  cmp A1,7
  je .none
@@ -430,8 +505,7 @@ FRAME inventory_transfer,56
  cmp qword [r11],0
  je .unchanged
  movzx eax,word [r11]
- cmp eax,10
- jae .swap
+ JUMP_TOOL eax,.swap
  cmp [r10],ax
  jne .swap
  movzx ecx,word [r10+2]

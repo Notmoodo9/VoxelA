@@ -54,8 +54,9 @@ empty cells, and preserves existing click/autofill and missing-ingredient rules.
 
 ## Next integration gates
 
-- Introduce registry2 inventory operations using metadata for stack/tool rules;
-  preserve registry1 validation when decoding older saves.
+- [x] Implement opt-in registry2 inventory and transactional2×2/3×3 grid operations.
+  [API contracts and tests](inventory2-grid-crafting.md).
+- [ ] Adopt these APIs in gameplay and add versioned migration for container saves.
 - Extend world edits, point queries, cached sections, meshes and ray picking
   together so block8–10 can be rendered, collided with, placed and broken.
 - Add a versioned combined save containing player state and the stable-ID
