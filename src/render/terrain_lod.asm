@@ -1,8 +1,8 @@
 %include "abi.inc"
 section .text
-extern terrain_surface, mix64
+extern terrain_surface, terrain_surface_index_build, terrain_surface_indexed, mix64
 ; Config64: Stream96*, Vertex32*, capacity>=65536, center global X/Z,
-; radius blocks32..4096, output count, optional scratch8192*32 pointer. Center has X/Z mod16==8.
+; radius blocks32..4096, output count, optional scratch360480 pointer. Center has X/Z mod16==8.
 ; Heights come exclusively from terrain_surface. No independent landscape.
 ; Canonical journal required. Inputs/destination must not alias. Synchronous.
 ; All rejected config/capacity requests leave output/count untouched.
@@ -61,8 +61,16 @@ FRAME lod_sample,88
  mov A2,[r10+16]
  lea A3,[rsp+72]
  mov r10,[rsp+32]
+ mov r11,[r10+56]
+ test r11,r11
+ jz .unindexed
+ lea A0,[r11+262144]
+ call terrain_surface_indexed
+ jmp .queried
+.unindexed:
  mov A0,[r10]
  call terrain_surface
+.queried:
  test rax,rax
  jnz .done
  mov r10,[rsp+40]
@@ -391,6 +399,14 @@ FRAME terrain_lod_build,360
  add r10,32
  loop .clear_cache
 .cache_ready:
+ mov r10,[rsp+32]
+ mov A1,[r10+56]
+ test A1,A1
+ jz .index_ready
+ add A1,262144
+ mov A0,[r10]
+ call terrain_surface_index_build
+.index_ready:
  mov qword [rsp+40],64 ; outer
  mov qword [rsp+48],40 ; inner
  mov qword [rsp+56],4 ; sample spacing

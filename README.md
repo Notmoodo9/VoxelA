@@ -287,6 +287,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Live Low/Balanced/High presets, default High; graphics do not alter saves/items.
 - [x] Actual-generator/journal distant surfaces, progressive LOD rings and shared-vertex joins.
 - [x] Caller-owned sample memoization with identical cached/uncached mesh output.
+- [x] Saved-edit column index for far meshes; dense 8,192-edit parity and rebuild checks.
 - [ ] Adopt the new heightfield in versioned explorable chunks and preserve old borders.
 - [ ] Extend sun shadows to dynamic/cascaded coverage for tall and distant terrain.
 - [ ] Moving, richer cloud volumes with wind and sunlight scattering.

@@ -64,6 +64,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/recipe_book.py $(BUILD)/libvoxela.so
 	python3 tests/landscape.py $(BUILD)/libvoxela.so
 	python3 tests/terrain_surface.py $(BUILD)/libvoxela.so
+	python3 tests/terrain_surface_index.py $(BUILD)/libvoxela.so
 	python3 tests/terrain_lod.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
@@ -107,6 +108,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/recipe_book.py $<
 	python3 tests/landscape.py $<
 	python3 tests/terrain_surface.py $<
+	python3 tests/terrain_surface_index.py $<
 	python3 tests/terrain_lod.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<

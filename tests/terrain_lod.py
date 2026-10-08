@@ -71,11 +71,23 @@ for radius,cx,cz in [(32,8,8),(48,8,8),(64,8,8),(128,8,8),(4096,16000008,-159999
   inner=outer;outer*=2;step*=2
  assert offset==count and levels==[4*2**i for i in range(len(levels))],(offset,count,levels)
  # Optional memoization must give identical geometry and retain its canary.
- expected=buf.raw[:count*32];cache=C.create_string_buffer(b'\xa5'*(8192*32+32),8192*32+32)
+ expected=buf.raw[:count*32];cache=C.create_string_buffer(b'\xa5'*(360480+32),360480+32)
  cfg[7]=C.addressof(cache);assert build(cfg)==0 and cfg[6]==count and buf.raw[:count*32]==expected
- assert cache.raw[8192*32:]==b'\xa5'*32
+ assert cache.raw[360480:]==b'\xa5'*32
  # Edges of each coarse triangle are joined to the finer edge; no buried offset.
  assert count>0
+# Maximum-size canonical journals exercise the optimized renderer, including
+# raised columns and removals at sampled positions, not only isolated queries.
+dense=(I*(8192*4))()
+for i in range(8192):
+ dense[i*4:i*4+4]=(-512+(i%128)*8,72+i%120,-256+(i//128)*8,0 if i%3==0 else 5)
+world[6]=8192;world[7]=C.addressof(dense)
+cfg=(U*8)(C.addressof(world),C.addressof(buf),65536,8,8,256,99,0)
+assert build(cfg)==0;expected=buf.raw[:cfg[6]*32];count=cfg[6]
+cfg[7]=C.addressof(cache)
+assert build(cfg)==0 and cfg[6]==count and buf.raw[:count*32]==expected,'dense indexed mesh differs'
+assert cache.raw[360480:]==b'\xa5'*32
+world[6]=1;world[7]=C.addressof(journal)
 # Rejections preserve buffer and count.
 buf=C.create_string_buffer(b'\xa5'*64,64);cfg=(U*8)(C.addressof(world),C.addressof(buf),2,8,8,64,123,0)
 assert build(cfg)==-2 and cfg[6]==123 and buf.raw==b'\xa5'*64

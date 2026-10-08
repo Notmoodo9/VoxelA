@@ -3536,7 +3536,7 @@ faces: resb 24576*8
 target: resb 32
 scratch_vertices: resb 147456*24
 vertices: resb 1000000*32
-lod_cache: resb 8192*32
+lod_cache: resb 360480
 lod_config: resb 64
 far_vertices: resb 65536*32
 outline_vertices: resb 24*32

@@ -56,20 +56,33 @@ invent biome colors or heights.
 
 Config 64 contains world pointer, Vertex 32 output pointer/capacity, aligned global
 center X/Z, radius in blocks, output vertex count, and optional caller-owned
-8,192×32-byte sample-cache pointer. Capacity must be at least 65,536 vertices;
+360,480-byte scratch pointer. Capacity must be at least 65,536 vertices;
 rejected configuration, capacity or journal records preserve output/count.
 Canonical journal ownership and valid nonoverlapping allocations are caller
 preconditions. The world must remain unchanged throughout a build.
 
 The largest ring set emits 35,184 vertices, about 1.07 MiB of GPU geometry. The
-renderer reserves 2 MiB vertex storage plus 0.25 MiB sample scratch. Memoization
+renderer reserves 2 MiB vertex storage plus about 0.344 MiB sample/index scratch.
+Memoization
 reuses shared surface samples, resets on every build and falls back safely if
-full. No mutable global mesher cache is shared between callers.
+full. The first 262,144 scratch bytes contain the sample memo; the remaining
+98,336 bytes hold an edit-column index. That index is built once per rebuild,
+with 16,384 bucket heads and 8,192 next-record links. Surface queries scan only
+the matching hash bucket, then check exact X/Z coordinates. Hash collisions
+cannot change results. No mutable global mesher cache is shared between callers.
+
+`terrain_surface_index_build(Stream96*,Index98336*)` validates every journal
+record before touching the index. `terrain_surface_indexed(Index98336*,X,Z,out8)`
+uses the same surface algorithm as the scan implementation. The caller must
+rebuild the index after any seed, journal pointer/count or record change; it is
+valid only while that world remains unchanged. The renderer rebuilds it every
+time the far mesh becomes dirty. Null mesh scratch retains the original exact
+scan path for compatibility and reference comparisons.
 
 Rebuilds remain synchronous and recenter with the resident cache. Worker jobs,
 frustum-selected patches, globally anchored clipmaps/geomorphing and local edits
-that rebuild only affected patches remain future performance work. Dense edit
-journals increase surface-query cost. The existing shadow volume still covers
+that rebuild only affected patches remain future performance work. Pathological
+hash collisions still increase surface-query cost. The existing shadow volume covers
 the detailed area; distant terrain outside it receives directional/ambient light.
 
 ## Validation
@@ -77,7 +90,10 @@ the detailed area; distant terrain outside it receives directional/ambient light
 Independent surface tests compare with generated blocks plus shuffled edits,
 including removed layers and raised blocks. Both ABI variants also audit mesh
 samples, every transition profile, increasing spacing, boundary/capacity canaries,
-rejected input conservation and cached/uncached byte-identical output. Graphics
+rejected input conservation and cached/uncached byte-identical output, including
+a maximum-size 8,192-edit journal. Index checks exercise rebuilds, unrelated
+columns, hash collisions and large coordinates; query timings are diagnostic,
+without hardware-dependent pass thresholds. Graphics
 checks retain radius controls, terrain edits, saves, large-coordinate restart and
 real SDL input. Native Windows graphics is separate from local cross-builds.
 
