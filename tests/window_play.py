@@ -7,13 +7,15 @@ import sys
 import tempfile
 binary=str(Path(sys.argv[1]).resolve());driver=str(Path(sys.argv[2]).resolve())
 with tempfile.TemporaryDirectory(prefix='VoxelA actual player ') as folder:
- env=os.environ.copy();env['LD_PRELOAD']=driver
+ env=os.environ.copy();env['LD_PRELOAD']=driver;env['XDG_DATA_HOME']=folder
  result=subprocess.run([binary,'--seed','42'],cwd=folder,env=env,capture_output=True,text=True,timeout=90)
  assert result.returncode==0,(result.returncode,result.stdout,result.stderr)
  assert result.stdout.count('Saved player and streamed edits')==2,result.stdout
  assert 'Loaded player and streamed edits' in result.stdout,result.stdout
  assert 'failed' not in result.stdout.lower(),result.stdout
  assert result.stdout.count('Autosaved player and world.')>=3,'pause/periodic/exit autosaves not dispatched'
+ prefs=(Path(folder)/'Notmoodo9'/'VoxelA'/'settings.vxp').read_bytes()
+ assert len(prefs)==64 and prefs[:8]==b'VXAPREFS','per-user settings not saved'
  data=(Path(folder)/'voxela-world.vxa').read_bytes()
  assert data[:8]==b'VXAWALK\0' and struct.unpack_from('<Q',data,24)[0]==42
  x,y,z=struct.unpack_from('<ddd',data,64)

@@ -278,7 +278,17 @@ try:
  assert edit(cell,original)==1
  assert select(9)==0 and pick()==1
  assert edit(cell,1)==1 and pick()==1
- assert mine(1,100)==0 and get(cell)==1,'bare-hand stone mining accepted'
+ assert getinventory(inv)==0;hand_inventory=bytes(inv)
+ assert mine(1,100)==0 and get(cell)==1,'bare-hand stone should take time'
+ for _ in range(58):assert mine(1,100)==0 and get(cell)==1
+ assert mine(1,100)==1 and get(cell)==0,'bare-hand stone did not break'
+ assert getinventory(inv)==0 and bytes(inv)==hand_inventory,'unsuitable hand produced a stone drop'
+ assert edit(cell,1)==1 and pick()==1
+ assert select(tool_slot+1)==0 and edit(cell,2)==1 and pick()==1
+ for _ in range(3):assert mine(1,100)==0 and get(cell)==2
+ assert mine(1,50)==1 and get(cell)==0 and getinventory(inv)==0
+ assert struct.unpack_from('<H',inv,tool_slot*8+4)[0]==58,'pick must wear on an unsuitable dirt block'
+
  assert edit(cell,original)==1
  assert select(tool_slot+1)==0
 
@@ -315,6 +325,13 @@ try:
   assert getinventory(inv)==0;before_inventory=bytes(inv)
   for _ in range(4):assert mine(1,100)==0
   assert get(cell)==original and getinventory(inv)==0 and bytes(inv)==before_inventory,'full bag consumed terrain or tool'
+  # An unsuitable held item yields no stone drop, so a full bag is allowed.
+  assert select(9)==0 and edit(cell,1)==1 and pick()==1
+  assert getinventory(inv)==0;no_drop_full=bytes(inv)
+  for _ in range(59):assert mine(1,100)==0 and get(cell)==1
+  assert mine(1,100)==1 and get(cell)==0
+  assert getinventory(inv)==0 and bytes(inv)==no_drop_full,'full-bag no-drop mining changed ownership'
+  assert edit(cell,original)==1
   held_full=bytearray(path.read_bytes());held_full[-40:-32]=struct.pack('<HHHH',5,1,0,0)
   checksum=0xcbf29ce484222325
   for i,b in enumerate(held_full):checksum=((checksum^(0 if 40<=i<48 else b))*0x100000001b3)&0xffffffffffffffff
@@ -397,6 +414,24 @@ try:
   optionpath=str(Path(optionsdir)/'settings-load.vxa').encode();assert save(optionpath)==0
   assert capturemode(1)==0 and mode(1)==0 and spacepress(5000)==0 and spacepress(5050)==1
   assert load(optionpath)==0 and getsettings(options)==0 and options[6]==0,'load retained transient flight'
+ # Settings persist independently of worlds, preserving ownership and resetting
+ # transient flight/sprint state. Bad files must not partially apply preferences.
+ pref_save=bind(engine,'play_preferences_save',[C.c_char_p]);pref_load=bind(engine,'play_preferences_load',[C.c_char_p])
+ assert getinventory(inv36)==0;pref_owned=bytes(inv36)
+ with tempfile.TemporaryDirectory() as prefsdir:
+  prefpath=Path(prefsdir)/'settings.vxp';encoded_pref=str(prefpath).encode()
+  for i,v in enumerate([70,156,1,0,1,300]):assert setting(i,v)==0
+  assert graphics(1)==0 and farset(128)==0 and pref_save(encoded_pref)==0
+  for i,v in enumerate([95,100,0,1,0,100]):assert setting(i,v)==0
+  assert graphics(2)==0 and farset(64)==0 and pref_load(encoded_pref)==0
+  assert getsettings(options)==0 and list(options)==[70,156,1,0,1,300,0,0]
+  assert getgraphics()==1 and farget()==128
+  assert getinventory(inv36)==0 and bytes(inv36)==pref_owned
+  damaged=bytearray(prefpath.read_bytes());damaged[36]^=1;prefpath.write_bytes(damaged)
+  assert pref_load(encoded_pref)==-1 and getsettings(options)==0 and list(options)==[70,156,1,0,1,300,0,0]
+  assert getgraphics()==1 and farget()==128
+  for i,v in enumerate([95,100,0,0,0,100]):assert setting(i,v)==0
+  assert graphics(2)==0 and farset(64)==0
  assert stop()==0 and stop()==0 and error()==0
  assert setseed(43)==0 and start()==0 and getplayer(pose)==0
  assert C.cast(pose,C.POINTER(C.c_double))[1]==height(43,0,0)+1,'configured seed spawn'

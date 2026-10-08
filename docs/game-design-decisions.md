@@ -32,8 +32,8 @@ item physics and merging are still unspecified.
 - Hunger affects healing and sprinting.
 - Tools lose durability when breaking any block.
 - Blocks can be broken with any held item or bare hands, subject to block-specific
-  breakability rules; an unsuitable tool may produce no drop. This replaces the
-  current rule that refuses stone mining without a pickaxe. Whether bedrock should
+  breakability rules; an unsuitable tool may produce no drop. The playable game now
+  permits slow stone mining without a pickaxe and produces no stone drop. Whether bedrock should
   remain unbreakable needs an explicit rule before removing that restriction.
 - Initial progression centers on better tools, obtaining more resources, building
   and exploration.

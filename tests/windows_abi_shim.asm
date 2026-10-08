@@ -270,5 +270,15 @@ SHIM terrain_lod_build
 SHIM terrain_surface
 SHIM terrain_surface_index_build
 SHIM terrain_surface_indexed
+SHIM lattice3
+SHIM noise3
+SHIM terrain1_column
+SHIM terrain1_cave
+SHIM generated_block1
+SHIM generate_section1
+SHIM survival_mine_duration
+SHIM survival_mine_drop
+SHIM preferences_encode
+SHIM preferences_decode
 SHIM landscape_sample
 section .note.GNU-stack noalloc noexec nowrite progbits

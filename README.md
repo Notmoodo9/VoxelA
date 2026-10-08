@@ -28,7 +28,8 @@ an8,192-edit journal. It is not the requested16-near/64-far renderer or1,024-blo
 world. Progressive surface meshes now extend the view to 2–256 chunks, default
 64, using the actual generator and saved surface edits. The separate 11-biome
 landscape sampler is CPU-only until a versioned block generator adopts it. Health/hunger and physical item drops remain pending. Creative flight and
-player settings are now available, but settings/flight are not persisted yet.
+player settings, graphics quality and far distance now persist in the per-user
+application directory. Active flight remains transient.
 
 Chest/table storage, stable container IDs, registry2 inventory and2×2/3×3 recipe
 transactions are **CPU-only**. They do not yet create playable container blocks,
@@ -98,9 +99,10 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | Escape / left click / F10 | Pause and release mouse / resume / quit |
 
 Survival starts with32dirt/8wood until trees/resources are implemented. Resources
-stack to 64; tools stack to 1. Mining picks up items directly and refuses an operation
-if the bag is full. Stone currently requires a pickaxe; this will change to the
-requested break-anything rule with suitability controlling drops. Manual saves
+stack to 64; tools stack to 1. Mining picks up drops directly and refuses a drop-producing operation
+if the bag is full; unsuitable stone mining needs no bag space. Stone can be broken by hand in six seconds but only yields a drop with a
+suitable pickaxe. Pickaxes wear on every supported block they break. Bedrock
+remains immutable. Manual saves
 retain player pose, mode,36slots, cursor, player grid and recorded edits. Older
 supported save formats migrate through their frozen validators. Current-directory
 saves are a prototype limitation; per-user multiworld storage is planned. Autosaves occur every five minutes, on
@@ -150,6 +152,66 @@ reset on load or mode changes, and flight is available only in Creative.
   Ambient music and block-specific sound; C418 only with suitable rights,
   otherwise original or properly licensed music.
 
+## Fifty major delivery features
+
+These are substantial delivery milestones, not fifty claims of completed work.
+The detailed checklist below records existing components; each milestone here
+requires integrated gameplay, save compatibility and applicable validation.
+Dependencies put world storage/range before the new generator, entities before
+ground drops, and liquids before reflections. Independent work can proceed in
+parallel in the development sequence without bypassing those dependencies.
+
+- [ ] **1. Versioned chunk generation.** Each recorded chunk keeps its generator version; new chunks follow explicit upgrade/blending rules.
+- [ ] **2. Region-backed world storage.** Terrain, edits, containers and entities load by region without a global 8,192-edit ceiling.
+- [ ] **3. Multiple named worlds.** Create, list, select and delete worlds with seed, game mode and difficulty.
+- [ ] **4. 1,024-block vertical world.** Generation, storage, rendering, collision and picking support Y−256–767.
+- [ ] **5. Continental terrain generation.** Shared climate/elevation fields produce reproducible landforms and smoothly blended borders.
+- [ ] **6. Temperate forests.** Distinct woodland terrain, deterministic tree species and useful resources.
+- [ ] **7. Desert ecosystems.** Dunes, arid vegetation, resources and appropriate creature habitats.
+- [ ] **8. Mountain ecosystems.** Tall ranges, foothills, snow lines, exposed stone and traversable passes.
+- [ ] **9. Oceans and coastlines.** Connected ocean basins, shelves, beaches and liquid-covered terrain.
+- [ ] **10. River networks.** Continuous waterways connect watersheds and reshape valley terrain.
+- [ ] **11. Cold biomes.** Tundra and polar regions have distinct terrain, resources and habitats.
+- [ ] **12. Wetlands.** Swamps have shallow water, vegetation and terrain appropriate to their climate.
+- [ ] **13. Savannas.** Warm grassland terrain, distinct vegetation and suitable animals.
+- [ ] **14. Rare fantasy biomes.** Unusual landforms and resources follow the agreed roughly 5–10% combined extremes target.
+- [ ] **15. Connected cave networks.** Seeded underground passages cross section/chunk boundaries consistently.
+- [ ] **16. Large caverns and entrances.** Occasional chambers and surface entrances form usable exploration spaces.
+- [ ] **17. Cross-chunk vegetation.** Trees and plants have deterministic ownership, placement and harvesting.
+- [ ] **18. Ore generation and mining tiers.** Depth/biome distributions and suitable tools support resource progression.
+- [ ] **19. Water simulation.** Sources, bounded flow updates, collision and persistence work across chunk borders.
+- [ ] **20. Lava simulation.** Flow, damage, lighting and water interactions survive save/reload.
+- [ ] **21. Distance-prioritized streaming.** Bounded generation/mesh/upload queues prioritize nearby terrain and cancel stale work.
+- [ ] **22. Independent near/far distances.** Nearby full block detail and 2–256-chunk simplified terrain have separate controls.
+- [ ] **23. Reduced chunk geometry.** Greedy/equivalent meshing preserves materials and block boundaries with bounded memory.
+- [ ] **24. Stable distant terrain.** Anchored progressive meshes, transitions and edit-aware detail reduce traversal popping.
+- [ ] **25. Crafting tables in gameplay.** Place, open and use a live 3×3 table with persistent owner/content state.
+- [ ] **26. Single and double chests in gameplay.** 27/54-slot storage, pairing and contents survive edits and reloads.
+- [ ] **27. Recipe acquisition and book.** Unlock through ingredients; searchable recipes show locked states and missing items.
+- [ ] **28. Physical dropped items.** Gravity, collision, merging, partial pickup and persistence conserve item ownership.
+- [ ] **29. Container and inventory ejection.** Breaking containers and closing crafting grids eject contents without duplication.
+- [ ] **30. Equipment and armor.** Armor/offhand equipment affects play and persists alongside inventory.
+- [ ] **31. Expanded tool progression.** Wood, stone and advanced tools have recipes, durability and suitable drop rules.
+- [ ] **32. Health, damage and respawn.** Fall/combat/environment damage, immunity and death handling work in gameplay.
+- [ ] **33. Hunger, food and healing.** Exhaustion, food, regeneration and sprint restrictions interact consistently.
+- [ ] **34. Six difficulties and Hardcore.** Peaceful through Extreme plus Hardcore-to-Spectator behavior persist per world.
+- [ ] **35. Spectator mode.** Noninteractive flight and observation obey explicit movement and interaction permissions.
+- [ ] **36. Farming and food production.** Planting, growth, harvest and food recipes provide Survival sustenance.
+- [ ] **37. Passive livestock.** Cows, pigs and chickens spawn, move and provide bounded drops.
+- [ ] **38. Rideable horses.** Mounting, movement, dismounting and throwing/damage behavior work in play.
+- [ ] **39. Predators and regional wildlife.** Lions, tigers, polar bears and birds follow habitat and behavior rules.
+- [ ] **40. Hostile and fantasy creatures.** Skeletons, zombies and original fantasy enemies support combat and drops.
+- [ ] **41. Fences and connected building.** Connection geometry and collision update correctly when neighboring blocks change.
+- [ ] **42. Directional building pieces.** Slabs, stairs, doors and glass preserve orientation/state and correct collision.
+- [ ] **43. Day/night world simulation.** A saved clock controls daylight, spawning and world lighting.
+- [ ] **44. Atmospheric sky and clouds.** Moving cloud volumes, sunsets, stars and scattering follow time/weather.
+- [ ] **45. Extended soft shadows.** Dynamic/cascaded coverage handles tall and distant terrain with cheaper presets.
+- [ ] **46. Reflective liquid rendering.** Fluid geometry, Fresnel reflections and transparent ordering work together.
+- [ ] **47. Local lighting and postprocessing.** Torches/held lights, ambient occlusion and bloom retain dark environments with brightness aids.
+- [ ] **48. Character presentation and wardrobe.** Animated 3D inventory character plus shirt/pants customization and persistent appearance.
+- [ ] **49. Settings and accessibility.** Persistent presets/effect toggles, rebinding, UI scale and optional camera effects.
+- [ ] **50. Audio and release readiness.** Positional block/creature sounds, licensed/original ambience and verified native Windows packaging.
+
 ## Ordered implementation checklist
 
 Work through these stages in dependency order, but bundle independent player,
@@ -165,6 +227,7 @@ its gameplay tasks. Keep existing save/generator contracts while adding versions
 - [x] CPU reference models and Microsoft x64 ABI regression checks.
 - [x] Assembly runner, offscreen graphics and scripted real SDL input checks.
 - [x] Main-push Windows executable/artifact workflow and license-aware packaging.
+- [x] Strict UTF-8-to-UTF-16 Windows save/load paths and Unicode filesystem test cases (native execution remains pending locally).
 - [x] Update packaged controls to match current flight/settings/autosave/book behavior.
 - [ ] Complete native Windows graphics, debug/unwind and standalone launch checks.
 - [x] Keep include/shared-source dependencies correct for incremental builds.
@@ -202,14 +265,14 @@ with no duplication or lost contents. Ground-drop semantics depend on stage3.
 ### 2. Player controls, Creative and save reliability
 
 - [x] Adjustable95-degree-default FOV with a documented projection convention.
-- [ ] 100%-default mouse sensitivity, invert mouse and toggle sprint.
+- [x] 100%-default mouse sensitivity, invert mouse and toggle sprint.
 - [x] Toggleable coordinate HUD and readable settings feedback.
 - [x] Creative double-Space flight and bounded adjustable flight speed.
 - [x] Collision-safe flight; disable gravity while flying; return safely to walking.
 - [ ] Searchable Creative catalog spanning every registered item/block.
 - [ ] Key rebinding and adjustable UI scale with resize-safe hit testing.
 - [x] Five-minute autosaves; save on pause and orderly exit; preserve live state on errors.
-- [ ] Persist player settings in the per-user directory with transactional writes.
+- [x] Persist player settings, graphics quality and far distance in the per-user directory with transactional writes.
 - [ ] Persist flight/Creative history appropriately in world/player metadata.
 
 Delivery: exercise settings and flight through SDL, save reliably, retain
@@ -227,7 +290,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 
 ### 4. Survival progression and modes
 
-- [ ] Tool suitability determines drops; break-anything rule and hardness timing.
+- [x] Break supported blocks with any held item; suitability controls stone drops; timed mining and wear on every block.
 - [ ] Acquire resources from generated trees/ores instead of the starter kit.
 - [ ] Wooden/stone/advanced tool and ore progression with shaped recipes.
 - [ ] Health, damage immunity windows, fall damage, death and respawn.
@@ -255,6 +318,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 
 - [x] Frozen generator0 seed/noise/section golden fixtures and negative-coordinate checks.
 - [x] CPU-only: separate seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs.
+- [x] CPU-only: candidate generator1 block/section path for Y−256–767, biome surfaces and deterministic global cave fields.
+- [x] CPU-only: independently modeled quintic 3D noise, cave roofs/floors and cross-section sampling.
 - [ ] Extend every vertical lookup/cache/save/physics/render path to Y−256–767.
 - [ ] Versioned continentalness/elevation/temperature/moisture fields and biome blends.
 - [ ] Plains/forests/deserts/mountains/oceans/rivers with distinct profiles/materials.
@@ -336,3 +401,5 @@ completion and ordering belong here. Keep completion claims scoped, preserve
 supported saves and unrelated changes, and never force-push.
 
 See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.md) for progressive world-derived meshes and their limits.
+
+See [candidate generator1 contracts](docs/generator1.md) for the new CPU terrain path and [persistent preferences](docs/preferences.md) for per-user settings.

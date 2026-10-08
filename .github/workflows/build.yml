@@ -62,6 +62,9 @@ jobs:
       - run: /ucrt64/bin/python.exe tests/player_options.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/terrain_surface.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/terrain_surface_index.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/generator1.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/mining_policy.py build/windows/${{ matrix.config }}/save_tests.dll
+      - run: /ucrt64/bin/python.exe tests/preferences.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/terrain_lod.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/landscape.py build/windows/${{ matrix.config }}/save_tests.dll
       - run: /ucrt64/bin/python.exe tests/material_assets.py

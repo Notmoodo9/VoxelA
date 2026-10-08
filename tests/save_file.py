@@ -11,7 +11,7 @@ lib=C.CDLL(lib_path)
 save=lib.file_save;save.argtypes=[C.c_char_p,C.c_void_p,C.c_uint64];save.restype=C.c_int64
 load=lib.file_load;load.argtypes=[C.c_char_p,C.c_void_p,C.c_uint64];load.restype=C.c_int64
 
-def encoded(path):return os.fsencode(path)
+def encoded(path):return str(path).encode("utf-8")
 def buffer(data):return C.create_string_buffer(data,len(data))
 def store(path,data):return save(encoded(path),buffer(data),len(data))
 
@@ -39,6 +39,14 @@ with tempfile.TemporaryDirectory(prefix='VoxelA save test ') as folder:
   check(load(encoded(path),output,262608)==len(data),'read length')
   check(bytes(output[:len(data)])==data,'read contents')
   check(bytes(output[len(data):])==b'\xa5'*(len(output)-len(data)),'read canary')
+ unicode_path=root/'世界 – café 🧱.vxa'
+ check(store(unicode_path,b'unicode world')==0,'Unicode save')
+ unicode_out=(C.c_ubyte*32)()
+ check(load(encoded(unicode_path),unicode_out,32)==13 and bytes(unicode_out[:13])==b'unicode world','Unicode load')
+ check(store(unicode_path,b'replacement')==0 and unicode_path.read_bytes()==b'replacement','Unicode replacement')
+ if os.name=='nt':
+  check(save(b'bad-\xff-path',buffer(b'x'),1)==-1,'invalid UTF-8 save')
+  check(load(b'bad-\xff-path',unicode_out,32)==-1,'invalid UTF-8 load')
  check(store(path,b'prior generation')==0)
  temporary=Path(str(path)+'.tmp');temporary.write_bytes(b'other writer or interrupted save')
  check(store(path,b'new generation')==-1,'existing temporary accepted')

@@ -1,5 +1,7 @@
 %include "abi.inc"
 section .text
+extern SDL_GetPrefPath, SDL_free
+extern play_preferences_load, play_preferences_save
 extern SDL_Init, SDL_Quit, SDL_CreateWindow, SDL_DestroyWindow
 extern SDL_GL_SetAttribute, SDL_GL_CreateContext, SDL_GL_DeleteContext
 extern SDL_GL_GetProcAddress, SDL_GL_GetAttribute, SDL_GL_GetDrawableSize
@@ -139,6 +141,10 @@ FRAME main,120
  call play_init
  test rax,rax
  jnz .pixel_error
+ cmp qword [rsp+80],0
+ jne .preferences_ready
+ call window_preferences_init
+.preferences_ready:
  call SDL_GetTicks
  mov eax,eax ; SDL ticks are explicitly unsigned32
  mov [start_tick],eax
@@ -828,6 +834,45 @@ FRAME main,120
 .return:
  mov rax,[rsp+112]
 END_FRAME main,120
+FRAME window_preferences_init,56
+ lea A0,[preferences_org]
+ lea A1,[preferences_app]
+ call SDL_GetPrefPath
+ test rax,rax
+ jz .done
+ mov [rsp+32],rax
+ xor r10d,r10d
+ lea r11,[preferences_path]
+.copy:
+ cmp r10,945
+ jae .too_long
+ mov cl,[rax+r10]
+ mov [r11+r10],cl
+ test cl,cl
+ jz .suffix
+ inc r10
+ jmp .copy
+.suffix:
+ lea rax,[preferences_name]
+ xor ecx,ecx
+.append:
+ mov dl,[rax+rcx]
+ mov [r11+r10],dl
+ inc r10
+ inc rcx
+ test dl,dl
+ jnz .append
+ mov byte [preferences_ready],1
+ mov A0,[rsp+32]
+ call SDL_free
+ lea A0,[preferences_path]
+ call play_preferences_load
+ jmp .done
+.too_long:
+ mov A0,[rsp+32]
+ call SDL_free
+.done:
+END_FRAME window_preferences_init,56
 ; Reuses the existing atomic world-file save; failure never clears live state.
 FRAME window_autosave,56
  mov [rsp+32],A0
@@ -843,7 +888,16 @@ FRAME window_autosave,56
  lea A0,[save_path]
  call play_save
  mov [rsp+48],rax
- mov A2,rax
+ cmp byte [preferences_ready],0
+ je .preferences_saved
+ lea A0,[preferences_path]
+ call play_preferences_save
+ test rax,rax
+ jz .preferences_saved
+ lea A0,[preferences_failed]
+ call puts
+.preferences_saved:
+ mov A2,[rsp+48]
  mov A1,[rsp+40]
  lea A0,[autosave_clock]
  call autosave_finish
@@ -881,9 +935,15 @@ blue: dd 0.94
 alpha: dd 1.0
 proc_names: dd p0-proc_names,p1-proc_names,p2-proc_names,p3-proc_names,p4-proc_names
 keymap: dw 26,1,22,2,4,4,7,8,44,16,225,32,224,64
+preferences_org: db 'Notmoodo9',0
+preferences_app: db 'VoxelA',0
+preferences_name: db 'settings.vxp',0
+preferences_failed: db 'Could not save settings; previous settings file retained.',0
 auto_pass: db 'Autosaved player and world.',0
 auto_fail: db 'Autosave failed; previous save and live state retained.',0
 section .bss align=16
+preferences_path: resb 960
+preferences_ready: resb 1
 procs: resq 5
 event: resb 56
 pixel: resb 4

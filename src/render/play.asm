@@ -8,7 +8,7 @@
 %define inventory_craft inventory36_craft
 %define inventory_consume inventory36_consume
 %define inventory_wear inventory36_wear
-%define mine_duration inventory36_mine_duration
+%define mine_duration survival_mine_duration
 %define inventory_can_craft inventory36_can_craft
 %define inventory_count inventory36_count
 %define inventory_transfer inventory36_transfer
@@ -22,6 +22,8 @@ extern world_raycast, cache_find, mesh_build, faces_expand
 extern game_encode, game_decode, file_save, file_load
 extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
+extern preferences_encode, preferences_decode
+extern survival_mine_drop
 extern terrain_lod_build
 extern book_init, book_search, book_append, book_backspace, book_scroll, book_recipe
 extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
@@ -1399,7 +1401,13 @@ FRAME play_apply,56
  call mine_duration
  test rax,rax
  js .need_tool
- ; Stage pickup + tool wear before terrain mutation. Full bags refuse mining.
+ lea A0,[inventory]
+ mov A1,[hit+64]
+ call survival_mine_drop
+ test rax,rax
+ js .rejected
+ mov [rsp+40],rax
+ ; Stage pickup + wear before terrain mutation. Only actual drops need bag space.
  lea r10,[inventory]
  lea r11,[pending_inventory]
  xor ecx,ecx
@@ -1411,17 +1419,16 @@ FRAME play_apply,56
  jb .copy
  lea A0,[pending_inventory]
  call inventory_wear
- mov A1,[hit+64]
- cmp A1,3
- jne .drop
- mov A1,2 ; Grass yields dirt, never itself.
-.drop:
+ mov A1,[rsp+40]
+ test A1,A1
+ jz .edit_break
  lea A0,[pending_inventory]
  mov A2,1
  xor A3,A3
  call inventory_add
  cmp rax,1
  jne .full
+.edit_break:
  lea A0,[hit]
  xor A1,A1
  call play_edit_cell
@@ -1437,6 +1444,10 @@ FRAME play_apply,56
  cmp ecx,304
  jb .commit
  lea r10,[collected_text]
+ cmp qword [rsp+40],0
+ jne .pickup_status
+ lea r10,[no_drop_text]
+.pickup_status:
  mov [status],r10
  jmp .done
 .break_creative:
@@ -3263,6 +3274,52 @@ FRAME play_shutdown,56
 .done:
  xor eax,eax
 END_FRAME play_shutdown,56
+FRAME play_preferences_save,120
+ mov [rsp+104],A0
+ lea A0,[options]
+ mov A1,[graphics_quality]
+ mov A2,[far_radius]
+ lea A3,[rsp+32]
+ call preferences_encode
+ test rax,rax
+ js .done
+ mov A0,[rsp+104]
+ lea A1,[rsp+32]
+ mov A2,64
+ call file_save
+.done:
+END_FRAME play_preferences_save,120
+FRAME play_preferences_load,184
+ lea A1,[rsp+32]
+ mov A2,64
+ call file_load
+ test rax,rax
+ js .done
+ mov A1,rax
+ lea A0,[rsp+32]
+ lea A2,[rsp+96]
+ lea A3,[rsp+128]
+ call preferences_decode
+ test rax,rax
+ jnz .done
+ lea r10,[options]
+ movups xmm0,[rsp+96]
+ movups xmm1,[rsp+112]
+ movups [r10],xmm0
+ movups [r10+16],xmm1
+ mov dword [space_pending],0
+ mov dword [shift_previous],0
+ lea A0,[options]
+ lea A1,[lens+4]
+ call settings_lens
+ mov eax,[rsp+128]
+ mov A0,rax
+ call play_graphics
+ mov eax,[rsp+132]
+ mov A0,rax
+ call play_far_distance
+.done:
+END_FRAME play_preferences_load,184
 FRAME play_save,56
  mov [rsp+40],A0
  lea A0,[world]
@@ -3390,7 +3447,8 @@ creative_text: db 'CREATIVE - UNLIMITED BLOCKS',0
 crafted_text: db 'CRAFTED',0
 craft_failed_text: db 'NEED INGREDIENTS AND INVENTORY SPACE',0
 bag_full_text: db 'INVENTORY FULL - BLOCK PRESERVED',0
-tool_needed_text: db 'STONE NEEDS A PICKAXE',0
+tool_needed_text: db 'UNBREAKABLE BLOCK',0
+no_drop_text: db 'BROKEN - UNSUITABLE TOOL: NO DROP',0
 collected_text: db 'COLLECTED',0
 empty_name: db 'EMPTY',0
 planks_name: db 'PLANKS',0

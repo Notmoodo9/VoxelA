@@ -1,8 +1,8 @@
 %include "abi.inc"
 section .text
 %ifdef WINDOWS_ABI
- extern CreateFileA, WriteFile, ReadFile, FlushFileBuffers, CloseHandle
- extern DeleteFileA, MoveFileExA
+ extern CreateFileW, MultiByteToWideChar, WriteFile, ReadFile, FlushFileBuffers, CloseHandle
+ extern DeleteFileW, MoveFileExW
 %else
  extern open, write, read, fsync, close, unlink, rename, __errno_location
 %endif
@@ -10,8 +10,15 @@ section .text
 ; -1 failure before replacement, -2 replacement done but directory sync failed.
 ; path 1..959 bytes, same-directory exclusive .tmp, bounded 262608 bytes.
 ; An existing .tmp is NEVER overwritten/deleted (e.g. interrupted other writer).
-; Windows paths use ANSI CreateFileA; Unicode-path adapter is future work.
-FRAME file_save,2200
+; Windows UTF-8 paths convert strictly to UTF-16 before wide filesystem calls.
+%ifdef WINDOWS_ABI
+ %define SAVE_FRAME 4088
+ %define LOAD_FRAME 2088
+%else
+ %define SAVE_FRAME 2200
+ %define LOAD_FRAME 136
+%endif
+FRAME file_save,SAVE_FRAME
  mov [rsp+64],A1
  mov [rsp+72],A2
  mov [rsp+112],A0
@@ -30,24 +37,49 @@ FRAME file_save,2200
  test al,al
  jz .end_path
  mov [rsp+r10+128],al
+%ifndef WINDOWS_ABI
  mov [rsp+r10+1152],al
+%endif
  inc r10
  jmp .path
 .end_path:
  test r10,r10
  jz .done
+%ifndef WINDOWS_ABI
  mov byte [rsp+r10+1152],0
+%endif
  mov dword [rsp+r10+128],0x706d742e ; .tmp
  mov byte [rsp+r10+132],0
 %ifdef WINDOWS_ABI
- lea A0,[rsp+128]
+ ; Temporary UTF-8 lives at128 until converted into the wide buffer at2048.
+ mov A0,65001
+ mov A1,8 ; MB_ERR_INVALID_CHARS
+ lea A2,[rsp+128]
+ mov A3,-1
+ lea r10,[rsp+2048]
+ mov A4,r10
+ mov A5,1004
+ CCALL MultiByteToWideChar
+ test eax,eax
+ jz .done
+ mov A0,65001
+ mov A1,8
+ mov A2,[rsp+112]
+ mov A3,-1
+ lea r10,[rsp+128]
+ mov A4,r10
+ mov A5,960
+ CCALL MultiByteToWideChar
+ test eax,eax
+ jz .done
+ lea A0,[rsp+2048]
  mov A1,0x40000000 ; GENERIC_WRITE
  xor A2,A2 ; exclusive sharing
  xor A3,A3
  mov A4,1 ; CREATE_NEW
  mov A5,0x80 ; FILE_ATTRIBUTE_NORMAL
  mov A6,0
- CCALL CreateFileA
+ CCALL CreateFileW
 %else
  lea A0,[rsp+128]
  mov A1,0xa00c1 ; WRONLY|CREAT|EXCL|NOFOLLOW|CLOEXEC
@@ -107,10 +139,10 @@ FRAME file_save,2200
  CCALL CloseHandle
  test eax,eax
  jz .cleanup
- lea A0,[rsp+128]
- mov A1,[rsp+112]
+ lea A0,[rsp+2048]
+ lea A1,[rsp+128]
  mov A2,9 ; REPLACE_EXISTING|WRITE_THROUGH
- CCALL MoveFileExA
+ CCALL MoveFileExW
  test eax,eax
  jz .cleanup
 %else
@@ -179,18 +211,19 @@ FRAME file_save,2200
 .temporary:
  cmp qword [rsp+96],0
  je .done
- lea A0,[rsp+128]
 %ifdef WINDOWS_ABI
- CCALL DeleteFileA
+ lea A0,[rsp+2048]
+ CCALL DeleteFileW
 %else
+ lea A0,[rsp+128]
  CCALL unlink
 %endif
 .done:
  mov rax,[rsp+104]
-END_FRAME file_save,2200
+END_FRAME file_save,SAVE_FRAME
 ; file_load(path,out,capacity)->byte count or -1, detects trailing bytes.
 ; Output is staging storage and MAY be partially written on error.
-FRAME file_load,136
+FRAME file_load,LOAD_FRAME
  mov [rsp+64],A1
  mov [rsp+72],A2
  mov qword [rsp+80],-1
@@ -199,13 +232,36 @@ FRAME file_load,136
  cmp A2,262608
  ja .done
 %ifdef WINDOWS_ABI
+ mov [rsp+112],A0
+ xor r10d,r10d
+.path:
+ cmp r10,960
+ jae .done
+ cmp byte [A0+r10],0
+ je .path_end
+ inc r10
+ jmp .path
+.path_end:
+ test r10,r10
+ jz .done
+ mov A0,65001
+ mov A1,8
+ mov A2,[rsp+112]
+ mov A3,-1
+ lea r10,[rsp+128]
+ mov A4,r10
+ mov A5,960
+ CCALL MultiByteToWideChar
+ test eax,eax
+ jz .done
+ lea A0,[rsp+128]
  mov A1,0x80000000 ; GENERIC_READ
  mov A2,1 ; share read only
  xor A3,A3
  mov A4,3 ; OPEN_EXISTING
  mov A5,0x80
  mov A6,0
- CCALL CreateFileA
+ CCALL CreateFileW
 %else
  mov A1,0xa0800 ; CLOEXEC|NOFOLLOW|NONBLOCK (avoid hanging on a FIFO)
  xor eax,eax
@@ -271,5 +327,5 @@ FRAME file_load,136
  mov qword [rsp+104],-1
 .done:
  mov rax,[rsp+104]
-END_FRAME file_load,136
+END_FRAME file_load,LOAD_FRAME
 ELF_STACK
