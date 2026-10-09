@@ -138,7 +138,7 @@ endif
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
 SDL_LIBS ?= -lSDL2
 .PHONY: window
-IO_OBJECT = $(BUILD)/src/platform/save_file.o $(BUILD)/src/platform/region_file.o $(BUILD)/src/platform/world_store.o $(BUILD)/src/platform/legacy_import.o $(BUILD)/src/platform/world_blend.o $(BUILD)/src/platform/region_stream.o $(BUILD)/src/platform/legacy_player.o
+IO_OBJECT = $(BUILD)/src/platform/save_file.o $(BUILD)/src/platform/region_file.o $(BUILD)/src/platform/world_store.o $(BUILD)/src/platform/legacy_import.o $(BUILD)/src/platform/world_blend.o $(BUILD)/src/platform/region_stream.o $(BUILD)/src/platform/legacy_player.o $(BUILD)/src/platform/world_surface.o
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
 $(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/play_window.o $(BUILD)/src/render/play.o $(IO_OBJECT)
@@ -178,6 +178,7 @@ save-reference: $(SAVE_LIBRARY)
 	python3 tests/region_cache_file.py $<
 	python3 tests/world_store.py $<
 	python3 tests/world_blend.py $<
+	python3 tests/world_surface.py $<
 	python3 tests/legacy_import.py $<
 	python3 tests/region_stream.py $<
 	python3 tests/legacy_player.py $<

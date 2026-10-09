@@ -71,10 +71,18 @@ The old horizon is disabled in region mode because it cannot represent saved
 region terrain correctly. The near view remains synchronous radius2 with1600
 sections; initial loads/recentering/full mesh rebuilds can hitch.
 
+Implemented source component: read-only `world_store_surface` resolves actual
+recorded blocks/dirty edits and the same blended/old-ceiling generator for absent
+sections. Batches stage1–64 samples and preserve the whole destination on failure.
+Queries leave the store, LRU, revisions, staging and files unchanged. Real-file
+tests cover restart, removed roofs, towers, negative heights and rejected data.
+See docs/region-surface.md for bounds and the remaining integration order. This
+is a synchronous storage component, not yet a visible region horizon.
+
 Acceptance criteria:
 
-- Add an actual-region surface query/index using saved blocks and authoritative
-  edits, including blended and complete-old-column vertical extensions.
+- Surface query implemented; add the reusable read cache/index before broad
+  sampling, including blended and complete-old-column vertical extensions.
 - Feed that data into progressive distant meshes. Never substitute an independent
   generator/horizon for recorded terrain. Validate restart-stable distant edits.
 - Introduce distance-prioritized, bounded generation/load/mesh queues and frame

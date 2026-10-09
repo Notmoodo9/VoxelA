@@ -38,6 +38,14 @@ saves of earlier entries. `world_store_close(store*)` flushes before eviction,
 retains ownership on failure, and is idempotent once closed. Reinitialize before
 accessing a closed store. This is synchronous storage, without worker jobs.
 
+## Read-only surface access
+
+`world_store_surface` and bounded staged `world_store_surface_batch` resolve the
+actual highest recorded/generated block without creating or modifying regions.
+They support full-height signed surfaces, authoritative dirty edits and old-world
+extensions. See [region surface contracts](region-surface.md); the window horizon
+and asynchronous loading remain pending.
+
 ## Legacy import
 
 `world_store_import_legacy(store*, immutableBytes*, length)` validates a format1–4

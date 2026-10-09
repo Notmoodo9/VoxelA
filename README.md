@@ -320,6 +320,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Experimental region mode: resumable legacy snapshot import preserving recorded generator0 columns/edits and checkpointing original player/inventory data last.
 - [x] Experimental region mode: new-side surface blending from complete recorded old columns, including dirty edits, deterministic corners and saved transitions.
 - [x] Experimental window integration: frozen-source upgrade recovery, completion-gated player/inventory adoption and full-height region-backed residency.
+- [x] Experimental storage API: read-only actual-region surfaces and bounded atomic sample batches, preserving dirty edits, recorded air, old ceilings and full-height signed surfaces. See [surface contracts](docs/region-surface.md).
 - [ ] Native Windows graphics verification, region-backed distant meshes and budgeted loading.
 - [x] Experimental region mode: adopt terrain/edits in gameplay without a global journal limit.
 - [ ] Adopt container/entity ownership and persistence in the region world.
