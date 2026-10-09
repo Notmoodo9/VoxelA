@@ -55,7 +55,9 @@ retry the same snapshot. Do not expose that destination as a playable world unti
 success. The original snapshot is never modified. Migration is resumable per
 file, not a transaction across files; callers must enforce the dedicated-world
 and single-writer preconditions. Player-state adoption is not yet wired into the
-window. New-side border blending is still pending.
+window. New-side surface blending is implemented in the world store; see
+[recorded-terrain border blending](terrain-blending.md) for complete-column
+eligibility, deterministic corners and remaining cave/vertical policies.
 
 Linux real-file tests cover traversal beyond pool capacity,8200 edits, restarts,
 identity/checksum rejection, locked temporary files, close failure, migration

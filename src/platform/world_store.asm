@@ -5,6 +5,7 @@ extern region_cache_init, region_cache_find, region_cache_reserve
 extern region_cache_evict
 extern region_cache_get, region_cache_publish, region_cache_dirty, region_cache_clean
 extern region_init, region_generate, region_get, region_edit
+extern world_store_generate
 extern region_file_load_optional, region_file_save, world_address, world_path
 ; Store1024: Cache40,root length40,UTF8 root880max at48,staging pointer1008,
 ; initialized1016. Config48: seed,generator,capacity,entries,root,staging.
@@ -143,11 +144,10 @@ FRAME world_store_acquire,1144
  mov r10,[rsp+80]
  bt qword [rax+32],r10
  jc .cached
- mov A0,rax
- mov A1,[rsp+80]
- mov r10,[rsp+32]
- mov A2,[r10+8]
- call region_generate
+ mov A1,rax
+ mov A0,[rsp+32]
+ mov A2,[rsp+80]
+ call world_store_generate
  test rax,rax
  js .done
 .cached:
@@ -200,10 +200,10 @@ FRAME world_store_acquire,1144
  add ecx,8
  cmp ecx,32
  jb .identity
- mov A0,r11
- mov A1,[rsp+80]
- mov A2,[r10+8]
- call region_generate
+ mov A1,r11
+ mov A0,[rsp+32]
+ mov A2,[rsp+80]
+ call world_store_generate
  test rax,rax
  js .done
  ; Only unchanged, loaded data may be published as already persisted.

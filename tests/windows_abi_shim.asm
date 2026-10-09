@@ -296,6 +296,10 @@ SHIM region_cache_evict
 SHIM region_cache_reserve
 SHIM region_cache_find
 SHIM region_cache_publish
+SHIM region_generate_blend
+SHIM legacy_edge_profile
+SHIM terrain1_blend_column
+SHIM generate_section_blend
 SHIM world_address
 SHIM world_path
 SHIM landscape_sample

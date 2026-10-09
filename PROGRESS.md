@@ -28,37 +28,48 @@ checks loaded seed/identity. Tests traverse beyond pool capacity, reload8200
 edits, reject failed saves, preserve old generator versions and check lifecycle.
 See docs/world-store.md. This removes the journal ceiling only in the new backend.
 
-## Next milestone: legacy upgrade and border blending
+## Completed legacy storage components (CPU/file-only)
 
-The CPU/file legacy-import component is implemented: validate format1–4 first,
-preserve the saved5×5 footprint plus recorded edited columns using generator0,
-apply edits, flush terrain and checkpoint the immutable original snapshot last.
-Interrupted writes can be retried; identical completed imports retain later
-edits. Generator conflicts and incompatible checkpoints are rejected.
+Legacy import validates format1–4, preserves the saved5×5 footprint and recorded
+edited columns using generator0, applies edits, flushes terrain and checkpoints
+the immutable original snapshot last. Interrupted writes can be retried;
+identical completed imports retain later edits. Conflicts are rejected.
 
-Still required before this gate is complete:
+New-side surface blending now reads actual complete recorded old columns from
+staging, dirty cache entries and files. It changes only missing generator1
+sections. Integer distance weights define edges/corners across all vertical
+sections; saved transitions are never regenerated. Tests cover both ABIs,
+negative/world/Y boundaries, edits, invalid input, failed publication, corruption,
+restart and generation-order invariance. See docs/terrain-blending.md for width,
+complete-column eligibility and cave/legacy-floor limitations.
 
-- Define deterministic new-side blending from preserved old boundary sections;
-  never modify recorded terrain or edits, including mixed-version region edges.
-- Validate negative coordinates, vertical boundaries, corners and restart-stable
-  blending against independent expected results.
-- Define publication/recovery and original player/inventory adoption for the
-  playable world; do not expose partial migrations as completed worlds.
-- Integrate and validate upgraded-world loading in gameplay before claiming it
-  is available to players. Existing unrecorded exploration cannot be inferred.
+## Next milestone: safe playable adoption and region-backed streaming
 
-The request for five milestones is not complete: world access is delivered,
-legacy import is a tested component, while border blending, playable streaming,
-full-height integration and loading queues remain open dependency gates.
+Storage components alone do not complete the legacy gameplay upgrade gate.
+Acceptance criteria for the next integration:
+
+- Define upgrade publication/recovery so a partial destination cannot be opened
+  as a completed world; adopt the checkpoint's original player/inventory state.
+- Feed recorded region block data into the playable cache and meshes, collision,
+  picking and horizon; do not resample unblended generator heights for saved land.
+- Retain bounded allocations, save dirty ownership before eviction and surface
+  corrupt/incompatible data as load errors rather than regenerating it.
+- Resolve legacy floor/vertical extension policy without rewriting recorded old
+  sections; preserve old containers and edits during adoption.
+- Validate actual gameplay traversal/restart and failures under Linux and native
+  Windows before claiming the upgrade is available to players.
+
+The five-milestone request remains incomplete. World access, legacy import and
+surface blending are implemented in storage; playable streaming, full-height
+integration and budgeted distance queues remain open dependency gates.
 
 Validation: Linux debug/release CPU references, Microsoft ABI adapters and real
-filesystem regressions pass. Windows debug/release executables and test DLLs
-cross-build; native Windows execution remains a CI check, not a local claim.
+filesystem regressions; Windows debug/release cross-builds. Native Windows
+execution is a CI check and must not be inferred from the cross-builds.
 
 ## Subsequent integration gates
 
-Legacy generator0 import and new-side border blending; region-backed playable
-streaming; complete vertical range in cache/meshing/collision/picking/saves;
+Complete vertical range in playable cache/meshing/collision/picking/saves;
 distance-prioritized budgeted queues; biome-generator adoption. Container/entity
-ownership and multiworld metadata follow the README dependencies. Do not mark
-these delivered merely because the storage primitives exist.
+ownership and multiworld metadata follow README dependencies. Do not mark these
+delivered merely because the storage primitives exist.

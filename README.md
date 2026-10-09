@@ -309,7 +309,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] CPU/file-only: bounded region LRU with revision-checked persistence and dirty-eviction refusal.
 - [x] CPU/file-only: region-backed get/edit/flush/close, signed addressing, staged load and safe dirty-victim saves without a global journal ceiling.
 - [x] CPU/file-only: resumable legacy snapshot import preserving recorded generator0 columns/edits and checkpointing original player/inventory data last.
-- [ ] New-side generator border blending and playable adoption of imported worlds.
+- [x] CPU/file-only: new-side surface blending from complete recorded old columns, including dirty edits, deterministic corners and saved transitions.
+- [ ] Playable adoption/publication of imported worlds and region-backed streaming.
 - [ ] Adopt region-backed terrain/edits/containers/entities in gameplay; remove global-journal limits.
 - [ ] Persist generator version per recorded chunk; explicit legacy import rules.
 - [ ] Bounded distance-prioritized generation/mesh/upload queues and cancellation.
@@ -333,7 +334,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [ ] Rare extremes and unusual realistic/fantasy biomes at the agreed frequency.
 - [ ] Connected caves, entrances, deep valleys and occasional huge caverns.
 - [ ] Deterministic trees, vegetation, ores and cross-chunk feature ownership.
-- [ ] Preserve recorded old terrain; implement new-side generator-border blending.
+- [x] CPU/file-only: preserve recorded old terrain; implement new-side generator surface blending.
+- [ ] Adopt upgraded terrain in gameplay and resolve legacy vertical/cave boundaries.
 - [ ] Water/lava simulation, sources/flow, collision, lighting and persistence.
 - [ ] Transparent/cutout passes with correct sorting/visibility for liquids/glass/leaves.
 - [ ] Confirm biome/ore/cave distributions before freezing final generator fixtures.
@@ -414,3 +416,5 @@ See [candidate generator1 contracts](docs/generator1.md) for the new CPU terrain
 See [versioned terrain region contracts](docs/regions.md) for recorded-block preservation and pending streaming integration.
 
 See [bounded world store and legacy migration](docs/world-store.md) for ownership, failure and integration contracts.
+
+See [recorded-terrain transition contracts](docs/terrain-blending.md) for the blend width, actual-block profiles and pending playable integration.
