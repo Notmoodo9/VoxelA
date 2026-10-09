@@ -98,3 +98,14 @@ checks retain radius controls, terrain edits, saves, large-coordinate restart an
 real SDL input. Native Windows graphics is separate from local cross-builds.
 
 ![Actual terrain from an elevated view](landscape-preview.png)
+
+## Region-mode horizon
+
+Opt-in region gameplay now uses the same progressive mesh topology with signed
+full-height samples from actual saved blocks, dirty residents and the exact
+blended generator for missing sections. Its separate bounded file/negative read
+cache never acquires or evicts gameplay regions. Whole-mesh staging preserves
+the previous visible horizon on corrupt/unreadable data; a separate far eye
+keeps retained vertices correctly positioned after recenter. See
+[region surface and cache contracts](region-surface.md). F7/F8 select2–256 chunk
+columns; near residency remains radius2 and all rebuilds remain synchronous.

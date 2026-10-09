@@ -3,7 +3,7 @@ section .text
 extern terrain_surface, terrain_surface_index_build, terrain_surface_indexed, mix64
 ; Config64: Stream96*, Vertex32*, capacity>=65536, center global X/Z,
 ; radius blocks32..4096, output count, optional scratch360480 pointer. Center has X/Z mod16==8.
-; Heights come exclusively from terrain_surface. No independent landscape.
+; Legacy uses terrain_surface; explicit source builds use actual-world callbacks.
 ; Canonical journal required. Inputs/destination must not alias. Synchronous.
 ; All rejected config/capacity requests leave output/count untouched.
 FRAME lod_sample,88
@@ -61,6 +61,9 @@ FRAME lod_sample,88
  mov A2,[r10+16]
  lea A3,[rsp+72]
  mov r10,[rsp+32]
+ mov r11,[r10]
+ cmp qword [r11+48],-2
+ je .source
  mov r11,[r10+56]
  test r11,r11
  jz .unindexed
@@ -70,11 +73,30 @@ FRAME lod_sample,88
 .unindexed:
  mov A0,[r10]
  call terrain_surface
+ jmp .queried
+.source:
+ mov r11,[r11+56]
+ mov A0,[r11]
+ call [r11+8]
+ test rax,rax
+ jnz .source_bad
+ cmp dword [rsp+72],-255
+ jl .source_bad
+ cmp dword [rsp+72],768
+ jg .source_bad
+ cmp dword [rsp+76],1
+ jb .source_bad
+ cmp dword [rsp+76],7
+ ja .source_bad
+ jmp .queried
+.source_bad:
+ mov rax,-1
+ jmp .done
 .queried:
  test rax,rax
  jnz .done
  mov r10,[rsp+40]
- mov eax,[rsp+72]
+ movsxd rax,dword [rsp+72]
  shl rax,16
  mov [r10+8],rax
  mov eax,[rsp+76]
@@ -138,6 +160,7 @@ FRAME lod_quad,56
  inc qword [rsp+48]
  cmp qword [rsp+48],6
  jb .vertex
+ xor eax,eax
 END_FRAME lod_quad,56
 ; A coarse cell touching a finer ring shares every fine edge vertex.
 ; Emit its unaffected triangle, then split the edge triangle into a fan.
@@ -199,6 +222,8 @@ FRAME lod_stitched_quad,184
  mov A0,[rsp+32]
  lea A1,[rsp+112]
  call lod_sample
+ test rax,rax
+ jnz .done
  mov A0,[rsp+32]
  mov A1,[rsp+144]
  call lod_emit
@@ -216,6 +241,8 @@ FRAME lod_stitched_quad,184
  mov rax,[rsp+72]
  cmp rax,[rsp+48]
  jbe .fan
+ xor eax,eax
+.done:
 END_FRAME lod_stitched_quad,184
 ; Join sampled surface edge to the neighboring stepped block profile.
 ; edge: two records; step; kind0 joins block boundary,kind1 joins half-step LOD.
@@ -269,9 +296,13 @@ FRAME lod_seam,264
  mov A0,[rsp+32]
  lea A1,[rsp+96]
  call lod_sample
+ test rax,rax
+ jnz .done
  mov A0,[rsp+32]
  lea A1,[rsp+128]
  call lod_sample
+ test rax,rax
+ jnz .done
  ; Copy endpoint records to fine side, retaining their plane positions.
  movups xmm0,[rsp+96]
  movups xmm1,[rsp+112]
@@ -312,6 +343,8 @@ FRAME lod_seam,264
  mov A1,r10
  mov A0,[rsp+32]
  call lod_sample
+ test rax,rax
+ jnz .done
  inc qword [rsp+80]
  cmp qword [rsp+80],2
  jb .sample
@@ -332,8 +365,56 @@ FRAME lod_seam,264
  mov rax,[rsp+72]
  cmp rax,[rsp+48]
  jb .segment
+ xor eax,eax
+.done:
 END_FRAME lod_seam,264
-FRAME terrain_lod_build,360
+FRAME terrain_lod_build,40
+ xor A1,A1
+ call terrain_lod_build_impl
+END_FRAME terrain_lod_build,40
+; Source16: context, callback(ctx,x,z,out8*) ->0/-1, signed height/block.
+; Destination is caller-staged. Count publishes only on success.
+FRAME terrain_lod_build_source,216
+ mov [rsp+32],A0
+ test A1,A1
+ jz .bad
+ cmp qword [A1+8],0
+ je .bad
+ mov [rsp+40],A1
+ mov r10,A0
+ xor ecx,ecx
+.copy:
+ mov rax,[r10+rcx]
+ mov [rsp+48+rcx],rax
+ add ecx,8
+ cmp ecx,64
+ jb .copy
+ xor eax,eax
+ mov ecx,12
+ lea r10,[rsp+112]
+.clear:
+ mov [r10],rax
+ add r10,8
+ loop .clear
+ lea rax,[rsp+112]
+ mov [rsp+48],rax
+ mov qword [rsp+160],-2
+ mov rax,[rsp+40]
+ mov [rsp+168],rax
+ lea A0,[rsp+48]
+ mov A1,1
+ call terrain_lod_build_impl
+ test rax,rax
+ jnz .done
+ mov r10,[rsp+32]
+ mov r11,[rsp+96]
+ mov [r10+48],r11
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME terrain_lod_build_source,216
+FRAME terrain_lod_build_impl,360
+ mov [rsp+336],A1
  mov [rsp+32],A0
  cmp qword [A0+16],65536
  jb .small
@@ -358,6 +439,8 @@ FRAME terrain_lod_build,360
  cmp r10d,8
  jne .bad
  mov r10,[A0]
+ cmp qword [rsp+336],1
+ je .validated
  cmp qword [r10+48],8192
  ja .bad
  ; Validate journal records before mutating either destination or count.
@@ -399,6 +482,8 @@ FRAME terrain_lod_build,360
  add r10,32
  loop .clear_cache
 .cache_ready:
+ cmp qword [rsp+336],1
+ je .index_ready
  mov r10,[rsp+32]
  mov A1,[r10+56]
  test A1,A1
@@ -471,6 +556,8 @@ FRAME terrain_lod_build,360
  lea A1,[rsp+96+rax]
  mov A0,[rsp+32]
  call lod_sample
+ test rax,rax
+ jnz .done
  inc qword [rsp+80]
  cmp qword [rsp+80],4
  jb .samples
@@ -511,6 +598,8 @@ FRAME terrain_lod_build,360
  mov A0,[rsp+32]
  lea A1,[rsp+96]
  call lod_quad
+ test rax,rax
+ jnz .done
  jmp .next_cell
 .edge_bottom:
  mov qword [rsp+88],0
@@ -549,6 +638,8 @@ FRAME terrain_lod_build,360
 .segments:
  mov A3,[rsp+88]
  call lod_stitched_quad
+ test rax,rax
+ jnz .done
  cmp qword [rsp+48],40
  jne .next_cell
  mov A0,[rsp+32]
@@ -556,6 +647,8 @@ FRAME terrain_lod_build,360
  mov A2,[rsp+56]
  xor A3,A3
  call lod_seam
+ test rax,rax
+ jnz .done
 .next_cell:
  mov rax,[rsp+56]
  add [rsp+64],rax
@@ -581,7 +674,7 @@ FRAME terrain_lod_build,360
  jmp .done
 .bad: mov rax,-1
 .done:
-END_FRAME terrain_lod_build,360
+END_FRAME terrain_lod_build_impl,360
 section .rdata
 q16_scale: dd 0.0000152587890625
 corners: db 0,0,1,0,1,1,0,1

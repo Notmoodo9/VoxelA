@@ -33,11 +33,12 @@ terrain/climate profiles and cave fields; recorded transitions persist. Region
 edits have no global journal ceiling. The original legacy save remains intact.
 See [region gameplay and upgrade instructions](docs/region-gameplay.md).
 
-This mode still has a synchronous5×5 near view; distant terrain is disabled until
-it can derive from saved regions. Neither mode provides the requested16-near/
-64-far default. Trees, liquids, creatures, health/hunger and physical item drops
+This mode still has a synchronous5×5 near view. Its progressive2–256-chunk
+horizon now samples actual saved region blocks and blended generation, including
+full-height edits. Loading and rebuilds can hitch; neither mode provides the
+requested16-near/64-far default. Trees, liquids, creatures, health/hunger and physical item drops
 remain pending; biome resources/material detail and guaranteed connected caves
-are unfinished. Player settings, graphics quality and legacy far distance
+are unfinished. Player settings, graphics quality and far distance
 persist per user. Active flight remains transient.
 
 Chest/table storage, stable container IDs, registry2 inventory and2×2/3×3 recipe
@@ -321,7 +322,8 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Experimental region mode: new-side surface blending from complete recorded old columns, including dirty edits, deterministic corners and saved transitions.
 - [x] Experimental window integration: frozen-source upgrade recovery, completion-gated player/inventory adoption and full-height region-backed residency.
 - [x] Experimental storage API: read-only actual-region surfaces and bounded atomic sample batches, preserving dirty edits, recorded air, old ceilings and full-height signed surfaces. See [surface contracts](docs/region-surface.md).
-- [ ] Native Windows graphics verification, region-backed distant meshes and budgeted loading.
+- [x] Experimental region window: cached actual-region progressive distant meshes, signed full-height samples, restart-stable edits and whole-mesh failure retention.
+- [ ] Native Windows graphics verification and budgeted loading.
 - [x] Experimental region mode: adopt terrain/edits in gameplay without a global journal limit.
 - [ ] Adopt container/entity ownership and persistence in the region world.
 - [x] Experimental region mode: persist generator version per recorded section with explicit legacy import rules.
@@ -372,7 +374,7 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [x] Dreamlike gradient sky, sun halo, procedural cloud layer and atmospheric fog.
 - [x] Real 1,024² sun depth map with filtered shadow edges on Balanced/High.
 - [x] Live Low/Balanced/High presets, default High; graphics do not alter saves/items.
-- [x] Actual-generator/journal distant surfaces, progressive LOD rings and shared-vertex joins.
+- [x] Actual-generator/journal and saved-region distant surfaces, progressive LOD rings and shared-vertex joins.
 - [x] Caller-owned sample memoization with identical cached/uncached mesh output.
 - [x] Saved-edit column index for far meshes; dense 8,192-edit parity and rebuild checks.
 - [ ] Adopt the new heightfield in versioned explorable chunks and preserve old borders.

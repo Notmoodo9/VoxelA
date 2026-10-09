@@ -2,10 +2,26 @@
 section .text
 extern malloc, free, world_path, region_file_load_optional, legacy_edge_profile
 extern region_generate, region_generate_blend, region_generate_upgrade
-extern legacy_column_profile
+extern legacy_column_profile, surface_read_region
 ; Internal synchronous read-only resolver. Requires canonical store/current region.
 ; Four complete recorded generator0 neighbor columns qualify. No generation on read.
-FRAME world_store_upgrade_profile,1256
+FRAME world_store_upgrade_profile,40
+ mov A4,0
+ call world_store_upgrade_profile_impl
+END_FRAME world_store_upgrade_profile,40
+; Cached variant takes Read64* instead of Store*; other args unchanged.
+FRAME world_store_upgrade_profile_cached,40
+ mov A4,A0
+ mov A0,[A0]
+ call world_store_upgrade_profile_impl
+END_FRAME world_store_upgrade_profile_cached,40
+FRAME world_store_upgrade_profile_impl,1256
+%ifdef WINDOWS_ABI
+ mov rax,[rsp+1296]
+%else
+ mov rax,A4
+%endif
+ mov [rsp+280],rax
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
@@ -101,6 +117,8 @@ FRAME world_store_upgrade_profile,1256
  mov r10,[rsp+32]
  cmp rcx,[r10+16]
  jb .cache
+ cmp qword [rsp+280],0
+ jne .cached_read
  mov A0,[rsp+32]
  lea A1,[rsp+80]
  lea A2,[rsp+288]
@@ -114,6 +132,15 @@ FRAME world_store_upgrade_profile,1256
  js .release
  jnz .next_face ; missing cannot imply preserved legacy data
  mov rax,[rsp+64]
+ jmp .read_ready
+.cached_read:
+ mov A0,[rsp+280]
+ lea A1,[rsp+80]
+ call surface_read_region
+ test rax,rax
+ js .release
+ jz .next_face
+.read_ready:
  mov [rsp+256],rax
  call world_blend_matches
  test eax,eax
@@ -193,7 +220,7 @@ FRAME world_store_upgrade_profile,1256
  jmp .done
 .bad: mov rax,-1
 .done:
-END_FRAME world_store_upgrade_profile,1256
+END_FRAME world_store_upgrade_profile_impl,1256
 ; Private leaf: stack has one return address beyond frame. No register clobbers
 ; other than RAX/R8/R9. The cache loop keeps RCX/R11 untouched.
 world_blend_matches:

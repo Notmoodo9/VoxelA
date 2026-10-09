@@ -3,13 +3,35 @@ section .text
 extern malloc, free, region_init, region_valid, world_path
 extern region_file_load_optional, world_store_upgrade_profile
 extern terrain1_upgrade_column, generated_block1
+extern surface_read_region, world_store_upgrade_profile_cached
 ; world_store_surface(Store1024*,globalX,globalZ,out8*) -> 0/-1.
 ; out8: SIGNED i32 top boundary Y (-255..768), u32 highest block.
 ; Read only: resident records (including dirty edits), then checked files,
 ; then the SAME generator/upgrade profile used by world_store_generate.
 ; Requires an initialized generator1 store, single owner, disjoint output.
 ; Bounded scratch 132592 bytes plus the existing profile resolver's scratch.
-FRAME world_store_surface,1384
+FRAME world_store_surface,40
+ mov A4,0
+ call world_store_surface_impl
+END_FRAME world_store_surface,40
+; Cached sample callback: (Read64*, X, Z, out8*), same result contract.
+FRAME world_surface_sample,40
+ cmp qword [A0+56],1
+ jne .bad
+ mov A4,A0
+ mov A0,[A0]
+ call world_store_surface_impl
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME world_surface_sample,40
+FRAME world_store_surface_impl,1384
+%ifdef WINDOWS_ABI
+ mov rax,[rsp+1424]
+%else
+ mov rax,A4
+%endif
+ mov [rsp+1216],rax
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
@@ -80,6 +102,8 @@ FRAME world_store_surface,1384
  mov r10,[rsp+32]
  cmp rcx,[r10+16]
  jb .cache
+ cmp qword [rsp+1216],0
+ jne .cached_read
  mov A0,[rsp+32]
  lea A1,[rsp+80]
  lea A2,[rsp+224]
@@ -93,6 +117,15 @@ FRAME world_store_surface,1384
  js .fail
  jnz .missing
  mov rax,[rsp+64]
+ jmp .read_ready
+.cached_read:
+ mov A0,[rsp+1216]
+ lea A1,[rsp+80]
+ call surface_read_region
+ test rax,rax
+ js .fail
+ jz .missing
+.read_ready:
  mov [rsp+128],rax
  call surface_matches
  test eax,eax
@@ -152,7 +185,14 @@ FRAME world_store_surface,1384
  lea A1,[rsp+160]
  mov A2,[rsp+64]
  lea A3,[A2+131264]
+ cmp qword [rsp+1216],0
+ jne .cached_profile
  call world_store_upgrade_profile
+ jmp .profile_ready
+.cached_profile:
+ mov A0,[rsp+1216]
+ call world_store_upgrade_profile_cached
+.profile_ready:
  test rax,rax
  jnz .fail
  mov rax,[rsp+40]
@@ -225,7 +265,7 @@ FRAME world_store_surface,1384
  jmp .done
 .bad: mov rax,-1
 .done:
-END_FRAME world_store_surface,1384
+END_FRAME world_store_surface_impl,1384
 ; Private leaf, frame accessed past the return address. Preserve loop registers.
 surface_matches:
  mov r8,[rsp+8+128]

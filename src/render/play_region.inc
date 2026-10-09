@@ -258,7 +258,7 @@ FRAME play_region_open,520
  mov qword [menu_drag_slot],-1
  mov dword [options+24],0
  mov dword [options+28],0
- mov dword [far_dirty],0
+ mov dword [far_dirty],1
  mov qword [lod_config+48],0
  lea r10,[region_ready_text]
  mov [status],r10
@@ -420,8 +420,7 @@ FRAME play_region_load,888
  add ecx,8
  cmp ecx,336
  jb .inventory
- mov dword [far_dirty],0
- mov qword [lod_config+48],0
+ mov dword [far_dirty],1
  xor eax,eax
  jmp .done
 .rollback:
@@ -457,7 +456,8 @@ region_checkpoint_name: db 'legacy-player.vxa',0
 region_upgrade_name: db 'upgrade-source.vxa',0
 region_original_name: db 'voxela-world.vxa',0
 region_state_name: db 'player.vxp',0
-region_ready_text: db 'Region world loaded. Full height active; distant terrain unavailable.',0
+region_horizon_failed_text: db 'Distant terrain load failed; previous horizon retained.',0
+region_ready_text: db 'Region world loaded. Full height and actual-region distant terrain active.',0
 section .bss align=16
 region_source_length: resq 1
 region_source_kind: resq 1

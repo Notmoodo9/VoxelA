@@ -67,24 +67,28 @@ cave connectivity remains unfinished. Existing recorded extensions are retained.
 
 ## Next milestone: actual-region horizon and loading budgets
 
-The old horizon is disabled in region mode because it cannot represent saved
-region terrain correctly. The near view remains synchronous radius2 with1600
-sections; initial loads/recentering/full mesh rebuilds can hitch.
+Region mode now draws a progressive horizon from actual saved-region blocks
+and the same blended generator used for absent sections. Far settings2–256
+chunks are effective. The near view remains synchronous radius2 with1600
+sections; initial loads/recentering/full mesh and horizon rebuilds can hitch.
 
 Implemented source component: read-only `world_store_surface` resolves actual
 recorded blocks/dirty edits and the same blended/old-ceiling generator for absent
 sections. Batches stage1–64 samples and preserve the whole destination on failure.
 Queries leave the store, LRU, revisions, staging and files unchanged. Real-file
 tests cover restart, removed roofs, towers, negative heights and rejected data.
-See docs/region-surface.md for bounds and the remaining integration order. This
-is a synchronous storage component, not yet a visible region horizon.
+This source now supplies a visible region horizon through a bounded read transaction and
+staged whole-mesh publication. Dirty residents take priority; cache/file reads
+leave gameplay ownership unchanged. Rebuild errors retain the prior mesh and
+origin; an independent far eye keeps its world position correct after recenter.
+See docs/region-surface.md for cache lifetime, memory bounds, measured limits
+and remaining integration order.
 
 Acceptance criteria:
 
-- Surface query implemented; add the reusable read cache/index before broad
-  sampling, including blended and complete-old-column vertical extensions.
-- Feed that data into progressive distant meshes. Never substitute an independent
-  generator/horizon for recorded terrain. Validate restart-stable distant edits.
+- Implemented: exact surfaces, reusable bounded region-file/negative read cache,
+  progressive signed-height meshes, saved distant edits across restart and
+  staged failure conservation. Further profile caching/indexing remains useful.
 - Introduce distance-prioritized, bounded generation/load/mesh queues and frame
   budgets; preserve dirty ownership and last complete views on errors/cancellation.
 - Make near/far settings effective for the region backend, with requested ranges,
@@ -93,6 +97,6 @@ Acceptance criteria:
   CI tests alone do not establish graphical execution on Windows.
 
 The five-milestone request remains incomplete: region access, legacy upgrade,
-blending and full-height opt-in gameplay are implemented, while saved-region
-horizon, budgeted loading, larger views and native Windows graphics remain gates.
+blending and full-height opt-in gameplay are implemented, while budgeted
+loading, larger near views and native Windows graphics remain gates. The saved-region horizon is integrated; smooth loading is not complete.
 Containers/entities and multiworld menus follow README dependencies.

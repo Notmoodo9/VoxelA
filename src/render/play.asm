@@ -24,7 +24,7 @@ extern frame_stats_init, frame_stats_step
 extern inventory36_click, inventory36_quick, inventory36_swap
 extern preferences_encode, preferences_decode
 extern survival_mine_drop
-extern terrain_lod_build
+extern terrain_lod_build, region_horizon_build
 extern book_init, book_search, book_append, book_backspace, book_scroll, book_recipe
 extern settings_init, settings_set, settings_lens, settings_mouse, player_fly, format_i64
 extern recipe_catalog_info
@@ -2989,6 +2989,17 @@ play_graphics:
  ret
 .bad: mov rax,-1
  ret
+global play_far_vertices_count, play_far_mesh_center
+play_far_vertices_count:
+ mov rax,[lod_config+48]
+ ret
+play_far_mesh_center:
+ mov rax,[lod_config+24]
+ mov [A0],rax
+ mov rax,[lod_config+32]
+ mov [A0+8],rax
+ xor eax,eax
+ ret
 global play_far_distance, play_get_far_distance
 play_far_distance:
  cmp A0,2
@@ -3036,42 +3047,60 @@ FRAME play_sky,40
  mov A0,0xb71
  GLCALL glEnable
 END_FRAME play_sky,40
-FRAME play_far_rebuild,40
- cmp qword [world+48],-1
- jne .legacy
- mov qword [lod_config+48],0
- mov dword [far_dirty],0
- xor eax,eax
- jmp .done
-.legacy:
+FRAME play_far_rebuild,120
+ ; Stage configuration as well as the region mesh: retain old count/origin
+ ; on read failure, including failures after a gameplay-cache recenter.
+ xor ecx,ecx
+.config:
+ lea r10,[lod_config]
+ mov rax,[r10+rcx]
+ mov [rsp+48+rcx],rax
+ add ecx,8
+ cmp ecx,64
+ jb .config
  lea r10,[world]
- mov [lod_config],r10
+ mov [rsp+48],r10
  lea r10,[far_vertices]
- mov [lod_config+8],r10
- mov qword [lod_config+16],65536
+ mov [rsp+56],r10
+ mov qword [rsp+64],65536
  mov rax,[world+32]
  shl rax,4
  add rax,8
- mov [lod_config+24],rax
+ mov [rsp+72],rax
  mov rax,[world+40]
  shl rax,4
  add rax,8
- mov [lod_config+32],rax
+ mov [rsp+80],rax
  mov rax,[far_radius]
  shl rax,4
- mov [lod_config+40],rax
+ mov [rsp+88],rax
  lea r10,[lod_cache]
- mov [lod_config+56],r10
- lea A0,[lod_config]
+ mov [rsp+104],r10
+ cmp qword [world+48],-1
+ je .region
+ lea A0,[rsp+48]
  call terrain_lod_build
  test rax,rax
  jnz .done
+ jmp .upload
+.region:
+ lea A0,[region_store]
+ lea A1,[rsp+48]
+ call region_horizon_build
+ test rax,rax
+ jz .upload
+ mov dword [far_dirty],0
+ lea r10,[region_horizon_failed_text]
+ mov [status],r10
+ xor eax,eax ; Keep drawing previous complete geometry. Retry on next dirty event.
+ jmp .done
+.upload:
  mov A0,0x8892
  mov r10d,[far_pair+4]
  mov A1,r10
  GLCALL glBindBuffer
  mov A0,0x8892
- mov A1,[lod_config+48]
+ mov A1,[rsp+96]
  shl A1,5
  lea A2,[far_vertices]
  mov A3,0x88e4
@@ -3079,9 +3108,18 @@ FRAME play_far_rebuild,40
  GLCALL glGetError
  test eax,eax
  jnz .done
+ xor ecx,ecx
+.publish:
+ lea r10,[lod_config]
+ mov rax,[rsp+48+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,64
+ jb .publish
  mov dword [far_dirty],0
+ xor eax,eax
 .done:
-END_FRAME play_far_rebuild,40
+END_FRAME play_far_rebuild,120
 FRAME play_draw,40
  cmp qword [world+88],0
  je .ready
@@ -3173,6 +3211,29 @@ FRAME play_draw,40
  mov A0,0x84c0
  GLCALL glActiveTexture
  call play_sky
+ ; The retained far mesh may have been built at an older center. Rebase
+ ; its eye independently so failed loads never shift its world coordinates.
+ movsd xmm0,[player]
+ mov rax,[lod_config+24]
+ sub rax,8
+ cvtsi2sd xmm1,rax
+ subsd xmm0,xmm1
+ cvtsd2ss xmm0,xmm0
+ movss [far_eye],xmm0
+ mov eax,[eye+4]
+ mov [far_eye+4],eax
+ movsd xmm0,[player+16]
+ mov rax,[lod_config+32]
+ sub rax,8
+ cvtsi2sd xmm1,rax
+ subsd xmm0,xmm1
+ cvtsd2ss xmm0,xmm0
+ movss [far_eye+8],xmm0
+ mov r10d,[locations]
+ mov A0,r10
+ mov A1,1
+ lea A2,[far_eye]
+ GLCALL glUniform3fv
  mov r10d,[locations+12]
  mov A0,r10
  mov A1,4
@@ -3184,6 +3245,12 @@ FRAME play_draw,40
  xor A1,A1
  mov A2,[lod_config+48]
  GLCALL glDrawArrays
+ ; Near geometry retains the gameplay-cache origin.
+ mov r10d,[locations]
+ mov A0,r10
+ mov A1,1
+ lea A2,[eye]
+ GLCALL glUniform3fv
  mov r10d,[locations+12]
  mov A0,r10
  xor A1,A1
@@ -3627,6 +3694,7 @@ scratch_vertices: resb 147456*24
 vertices: resb 4000000*32
 lod_cache: resb 360480
 lod_config: resb 64
+far_eye: resb 12
 far_vertices: resb 65536*32
 outline_vertices: resb 24*32
 hud_vertices: resb 100000*32

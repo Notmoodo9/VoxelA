@@ -38,7 +38,20 @@ try:
   assert openworld(path)==0 and state()==before,'resumed upgrade did not retain frozen player/inventory'
   assert (root/'legacy-player.vxa').read_bytes()==legacy and oldsave.read_bytes()==retained
   image=capture();assert len({image[i:i+3] for i in range(0,len(image),4)})>100
-  assert far(128)==0;capture() # region horizon guard must not draw legacy heights
+  assert far(128)==0;capture() # actual saved-region source, not legacy generator
+  count=engine.play_far_vertices_count;count.argtypes=[];count.restype=I
+  assert 0<count()<=65536
+  meshcenter=bind(engine,'play_far_mesh_center',[P]);old_center=C.create_string_buffer(16)
+  assert meshcenter(old_center)==0
+  old_count=count();bad=root/'r_4_0_47.vxr';bad.write_bytes(b'corrupt')
+  assert far(256)==0;capture();assert count()==old_count,'failed horizon replaced visible mesh'
+  assert mode(1)==0 and space(100)==0 and space(200)==1
+  for _ in range(20):assert step(1,100)==0
+  capture();assert count()==old_count
+  retained_center=C.create_string_buffer(16);assert meshcenter(retained_center)==0 and retained_center.raw==old_center.raw
+  bad.unlink();assert far(128)==0;capture();assert count()==old_count
+  assert meshcenter(retained_center)==0 and retained_center.raw!=old_center.raw,'traversal did not exercise retained horizon origin'
+  assert mode(0)==0
   for y in (-128,400):assert edit((I*3)(1,y,0),5)>=0 and get((I*3)(1,y,0))==5
   capture()
   assert mode(1)==0 and space(1000)==0 and space(1100)==1
@@ -71,4 +84,4 @@ finally:
  if ctx:stop();dc(ctx)
  if w:dw(w)
  quit()
-print('PASS: real GL region upgrade, preserved legacy/state, full-height Creative flight/edits, save/load/restart, failed writes, corrupt/blocked poses and horizon guard')
+print('PASS: real GL region upgrade, preserved legacy/state, full-height Creative flight/edits, save/load/restart, failed writes, corrupt/blocked poses and actual-region horizon/failure retention')

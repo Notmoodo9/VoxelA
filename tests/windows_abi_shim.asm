@@ -309,4 +309,67 @@ SHIM generate_section_blend
 SHIM world_address
 SHIM world_path
 SHIM landscape_sample
+; Source callbacks supplied by Python use SysV on Linux. Adapt both sides,
+; preserving Windows nonvolatile integer and SIMD registers at the callback.
+section .text
+global terrain_lod_build_source
+extern win_terrain_lod_build_source
+terrain_lod_build_source:
+ sub rsp,88
+ test rsi,rsi
+ jz .direct
+ cmp qword [rsi+8],0
+ je .direct
+ mov rax,[rsi]
+ mov [rsp+32],rax
+ mov rax,[rsi+8]
+ mov [rsp+40],rax
+ lea rax,[rsp+32]
+ mov [rsp+48],rax
+ lea rax,[rel lod_callback_sysv]
+ mov [rsp+56],rax
+ mov rcx,rdi
+ lea rdx,[rsp+48]
+ jmp .call
+.direct:
+ mov rcx,rdi
+ mov rdx,rsi
+.call:
+ call win_terrain_lod_build_source
+ add rsp,88
+ ret
+lod_callback_sysv:
+ sub rsp,216
+ mov [rsp+32],rdi
+ mov [rsp+40],rsi
+ movdqu [rsp+48],xmm6
+ movdqu [rsp+64],xmm7
+ movdqu [rsp+80],xmm8
+ movdqu [rsp+96],xmm9
+ movdqu [rsp+112],xmm10
+ movdqu [rsp+128],xmm11
+ movdqu [rsp+144],xmm12
+ movdqu [rsp+160],xmm13
+ movdqu [rsp+176],xmm14
+ movdqu [rsp+192],xmm15
+ mov r10,rcx
+ mov rdi,[r10]
+ mov rsi,rdx
+ mov rdx,r8
+ mov rcx,r9
+ call [r10+8]
+ movdqu xmm6,[rsp+48]
+ movdqu xmm7,[rsp+64]
+ movdqu xmm8,[rsp+80]
+ movdqu xmm9,[rsp+96]
+ movdqu xmm10,[rsp+112]
+ movdqu xmm11,[rsp+128]
+ movdqu xmm12,[rsp+144]
+ movdqu xmm13,[rsp+160]
+ movdqu xmm14,[rsp+176]
+ movdqu xmm15,[rsp+192]
+ mov rdi,[rsp+32]
+ mov rsi,[rsp+40]
+ add rsp,216
+ ret
 section .note.GNU-stack noalloc noexec nowrite progbits

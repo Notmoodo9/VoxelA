@@ -43,8 +43,8 @@ accessing a closed store. This is synchronous storage, without worker jobs.
 `world_store_surface` and bounded staged `world_store_surface_batch` resolve the
 actual highest recorded/generated block without creating or modifying regions.
 They support full-height signed surfaces, authoritative dirty edits and old-world
-extensions. See [region surface contracts](region-surface.md); the window horizon
-and asynchronous loading remain pending.
+extensions. See [region surface contracts](region-surface.md); the window uses these surfaces for its actual-region horizon. Asynchronous
+loading remains pending.
 
 ## Legacy import
 

@@ -61,10 +61,14 @@ Unrecorded new columns use generator1's eleven climate/terrain profiles and cave
 fields with old-border surface blending. This does not add trees, liquids,
 creatures, biome-specific resources or guaranteed cave-network connectivity.
 
-The near cache is still radius2, synchronous and bounded. Distant terrain is
-explicitly disabled in this mode: the legacy horizon sampler cannot represent
-recorded region blocks and blended surfaces accurately. F7/F8 do not expand the
-region view. Region-backed progressive distant meshes, larger adjustable near
+The near cache is still radius2, synchronous and bounded. F7/F8 now control the
+actual-region progressive horizon from2–256 chunk columns, using saved blocks,
+authoritative edits and the same blended generator for missing terrain. They do
+not expand near residency. Distant meshes are capped at65536 vertices; cached
+read transactions avoid terrain generation/eviction while sampling. Failed
+sampling retains the previous complete mesh at its original world coordinates,
+reports status and retries on a later edit/recenter/load/distance change. See
+[region surfaces and horizon](region-surface.md). Larger adjustable near
 residency, frustum/mesh optimization and loading budgets remain next work.
 Initial generation, movement recentering and edits can hitch. Render output is
 bounded to four million vertices; an oversized scene fails rather than overruns.
