@@ -15,11 +15,12 @@ A CPU/file milestone is not a claim that the feature is available in the window.
    ownership. Both CPU calling conventions, debug/release and real-file tests
    validate the milestone. See docs/region-cache.md.
 
-The current game still uses its5×5-column generator0 cache and8,192-edit journal.
-The new region cache is CPU/file-only. Native Windows execution is distinct from
-local Windows cross-builds and Microsoft ABI adapters.
+Default launch retains the legacy5×5 generator0 cache and8192-edit journal.
+Opt-in `--region-world` now adopts region storage in the actual window. Linux
+OpenGL/SDL integration is tested; native Windows graphics execution remains a
+separate validation gate from cross-builds and CPU calling-convention adapters.
 
-## Completed world-access milestone (CPU/file-only)
+## Completed world-access milestone (storage APIs)
 
 The bounded world store now combines addressing, mixed-generator regions,
 staged file reads, get/edit, dirty-victim flush and ownership-preserving close.
@@ -28,7 +29,7 @@ checks loaded seed/identity. Tests traverse beyond pool capacity, reload8200
 edits, reject failed saves, preserve old generator versions and check lifecycle.
 See docs/world-store.md. This removes the journal ceiling only in the new backend.
 
-## Completed legacy storage components (CPU/file-only)
+## Completed legacy storage components
 
 Legacy import validates format1–4, preserves the saved5×5 footprint and recorded
 edited columns using generator0, applies edits, flushes terrain and checkpoints
@@ -43,33 +44,47 @@ negative/world/Y boundaries, edits, invalid input, failed publication, corruptio
 restart and generation-order invariance. See docs/terrain-blending.md for width,
 complete-column eligibility and cave/legacy-floor limitations.
 
-## Next milestone: safe playable adoption and region-backed streaming
+## Implemented opt-in playable integration
 
-Storage components alone do not complete the legacy gameplay upgrade gate.
-Acceptance criteria for the next integration:
+`--region-world <existing-directory>` freezes the validated original legacy
+snapshot before import, resumes that same source after interruption and requires
+the final completion checkpoint before adoption. Formats1–4 retain original
+player/inventory/cursor/grid state; newer player.vxp state takes precedence.
+The original working-directory legacy file is never modified.
 
-- Define upgrade publication/recovery so a partial destination cannot be opened
-  as a completed world; adopt the checkpoint's original player/inventory state.
-- Feed recorded region block data into the playable cache and meshes, collision,
-  picking and horizon; do not resample unblended generator heights for saved land.
-- Retain bounded allocations, save dirty ownership before eviction and surface
-  corrupt/incompatible data as load errors rather than regenerating it.
-- Resolve legacy floor/vertical extension policy without rewriting recorded old
-  sections; preserve old containers and edits during adoption.
-- Validate actual gameplay traversal/restart and failures under Linux and native
-  Windows before claiming the upgrade is available to players.
+A bounded staged region view supplies actual blocks to the window, meshes,
+collision, Creative flight, picking and edits acrossY−256–767. Failed residency
+loads preserve the complete previous view. Player/inventory state uses a new
+checksummed full-height format; saved blocked poses are rejected. Dirty regions
+flush before state saves; failed writes retain live data, and failed exit saves
+keep the window open for retry. F9 reloads state against current terrain without
+rolling back region edits. See docs/region-gameplay.md for ownership/failure scope.
 
-The five-milestone request remains incomplete. World access, legacy import and
-surface blending are implemented in storage; playable streaming, full-height
-integration and budgeted distance queues remain open dependency gates.
+Complete old columns retain bedrockY0 and all recorded sections. New vertical
+extensions use their actual old surface ceilings (air above255), with generator1
+underground/caves and bedrock at−256 below the preserved old floor. Cross-version
+cave connectivity remains unfinished. Existing recorded extensions are retained.
 
-Validation: Linux debug/release CPU references, Microsoft ABI adapters and real
-filesystem regressions; Windows debug/release cross-builds. Native Windows
-execution is a CI check and must not be inferred from the cross-builds.
+## Next milestone: actual-region horizon and loading budgets
 
-## Subsequent integration gates
+The old horizon is disabled in region mode because it cannot represent saved
+region terrain correctly. The near view remains synchronous radius2 with1600
+sections; initial loads/recentering/full mesh rebuilds can hitch.
 
-Complete vertical range in playable cache/meshing/collision/picking/saves;
-distance-prioritized budgeted queues; biome-generator adoption. Container/entity
-ownership and multiworld metadata follow README dependencies. Do not mark these
-delivered merely because the storage primitives exist.
+Acceptance criteria:
+
+- Add an actual-region surface query/index using saved blocks and authoritative
+  edits, including blended and complete-old-column vertical extensions.
+- Feed that data into progressive distant meshes. Never substitute an independent
+  generator/horizon for recorded terrain. Validate restart-stable distant edits.
+- Introduce distance-prioritized, bounded generation/load/mesh queues and frame
+  budgets; preserve dirty ownership and last complete views on errors/cancellation.
+- Make near/far settings effective for the region backend, with requested ranges,
+  controlled memory/vertex budgets and meaningful measured performance evidence.
+- Verify native Windows region gameplay; local cross-builds and native file/CPU
+  CI tests alone do not establish graphical execution on Windows.
+
+The five-milestone request remains incomplete: region access, legacy upgrade,
+blending and full-height opt-in gameplay are implemented, while saved-region
+horizon, budgeted loading, larger views and native Windows graphics remain gates.
+Containers/entities and multiworld menus follow README dependencies.

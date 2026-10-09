@@ -85,6 +85,12 @@ END_FRAME generated_block,72
 ; stream_recenter(world,SX,SZ)->1 rebuilt residency,0 unchanged,-1 invalid.
 ; Retains matching ring slots. Journal overrides are reapplied on regeneration.
 FRAME stream_recenter,152
+ cmp qword [A0+48],-1
+ jne .legacy
+ mov r10,[A0+56]
+ call [r10+8]
+ jmp .done
+.legacy:
  mov [rsp+32],A0
  cmp A1,-1875000
  jl .bad
@@ -255,6 +261,12 @@ FRAME stream_recenter,152
 END_FRAME stream_recenter,152
 ; stream_get(world,coords)->ID or -1 unloaded/outside. Nonnull caller buffers.
 FRAME stream_get,56
+ cmp qword [A0+48],-1
+ jne .legacy
+ mov r10,[A0+56]
+ call [r10+16]
+ jmp .done
+.legacy:
  mov A2,A1
  ; Save coords before assigning the output argument (SysV A2 distinct).
  mov [rsp+32],A1
@@ -272,6 +284,12 @@ END_FRAME stream_get,56
 ; stream_edit(world,coords,id)->1 changed,0 unchanged,-1 invalid/unloaded,
 ; -2 journal full. Reverting to generated terrain removes the override.
 FRAME stream_edit,152
+ cmp qword [A0+48],-1
+ jne .legacy
+ mov r10,[A0+56]
+ call [r10+24]
+ jmp .done
+.legacy:
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2

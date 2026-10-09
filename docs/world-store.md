@@ -1,6 +1,8 @@
 # Bounded world access and legacy migration
 
-These APIs are CPU/file components. The playable window has not adopted them.
+These APIs back the experimental `--region-world` window mode. Default launch
+retains legacy storage. See [region gameplay](region-gameplay.md) for adoption,
+full-height player state, immutable upgrade sources and remaining limits.
 
 `world_store_init(store1024*, config48*)` returns 0 on success. Config qwords:
 seed, default generator (0 or 1), capacity (1–64), cache entries pointer,
@@ -54,8 +56,8 @@ dirty partial destination regions; retain ownership, resolve the failure and
 retry the same snapshot. Do not expose that destination as a playable world until
 success. The original snapshot is never modified. Migration is resumable per
 file, not a transaction across files; callers must enforce the dedicated-world
-and single-writer preconditions. Player-state adoption is not yet wired into the
-window. New-side surface blending is implemented in the world store; see
+and single-writer preconditions. The opt-in window gates adoption on this checkpoint and freezes its source
+before migration. New-side surface blending is implemented in the world store; see
 [recorded-terrain border blending](terrain-blending.md) for complete-column
 eligibility, deterministic corners and remaining cave/vertical policies.
 

@@ -236,6 +236,8 @@ END_FRAME walk_encode,104
 ; walk_decode(bytes,length,world,player)->0/-1. Whole-file validation precedes
 ; journal/player mutation. Seed must match; old demo format is separate.
 FRAME walk_decode,104
+ cmp qword [A2+48],-1
+ je .bad ; region-backed streams require their own player-state codec
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2

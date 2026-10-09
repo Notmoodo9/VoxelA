@@ -88,6 +88,17 @@ with tempfile.TemporaryDirectory(prefix='VoxelA actual terrain blend ') as folde
    if oldmask&(1<<slot):
     assert after[64+slot*8:72+slot*8]==data[64+slot*8:72+slot*8]
     start=192+slot*8192;assert after[start:start+8192]==data[start:start+8192]
+ # A complete old column owns its vertical ceiling even where the newer
+ # native generator would produce a tall mountain above the preserved old air.
+ native=bind('terrain1_column',[U,I,I,P]);data=C.create_string_buffer(32);mountain=None
+ for x in range(-20000,20000,127):
+  if native(42,x,x//3,data)==0 and C.c_int32.from_buffer(data).value>300:mountain=(x,x//3);break
+ assert mountain is not None
+ extension=root/'extension';extension.mkdir();old=setup(extension,0)
+ for sy in range(16):coords[:]=(mountain[0],sy*16,mountain[1]);assert acquire(old[0],coords)>=0
+ assert close(old[0])==0
+ fresh=setup(extension);coords[:]=(mountain[0],280,mountain[1]);assert get(fresh[0],coords)==0
+ assert close(fresh[0])==0
  # Out-of-world neighbors are skipped, including signed negative borders.
  edge=root/'edge';edge.mkdir();owner=setup(edge)
  coords[:]=(-30000000,-256,29999999);assert get(owner[0],coords)==7 and close(owner[0])==0

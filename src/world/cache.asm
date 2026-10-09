@@ -42,6 +42,8 @@ cache_find:
 ; Rejects duplicates, full cache, invalid coordinates, NULL blocks, zero token.
 ; No ownership transfer: caller retains blocks until cache no longer used.
 FRAME cache_insert,88
+ bt qword [A0+8],63
+ jc .bad ; region views populate validated entries through staged publication
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
@@ -258,12 +260,29 @@ FRAME cache_get,104
  mov [rsp+40],A1
  mov [rsp+48],A2
  mov r10,A1
+ bt qword [A0+8],63
+ jc .extended_bounds
  mov A0,[r10]
  mov A1,[r10+8]
  mov A2,[r10+16]
  call world_in_bounds
  test eax,eax
  jz .outside
+ jmp .inside
+.extended_bounds:
+ cmp qword [r10],-30000000
+ jl .outside
+ cmp qword [r10],30000000
+ jge .outside
+ cmp qword [r10+16],-30000000
+ jl .outside
+ cmp qword [r10+16],30000000
+ jge .outside
+ cmp qword [r10+8],-256
+ jl .outside
+ cmp qword [r10+8],768
+ jge .outside
+.inside:
  mov r10,[rsp+40]
  mov rax,[r10]
  sar rax,4

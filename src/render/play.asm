@@ -339,7 +339,7 @@ FRAME play_rebuild,136
 .section:
  mov rax,[rsp+64]
  shl rax,6
- lea r10,[entries]
+ mov r10,[world+8]
  add r10,rax
  mov [rsp+72],r10
  mov qword [rsp+80],0
@@ -382,7 +382,7 @@ FRAME play_rebuild,136
  mov [rsp+88],rax
  imul rax,6
  add rax,[vertex_count]
- cmp rax,1000000
+ cmp rax,4000000
  ja .bad
  mov r10,[rsp+72]
  mov rax,[r10]
@@ -477,7 +477,8 @@ FRAME play_rebuild,136
  imul rax,6
  add [vertex_count],rax
  inc qword [rsp+64]
- cmp qword [rsp+64],400
+ mov r10,[world+24]
+ cmp [rsp+64],r10
  jb .section
  mov A0,0x8892
  mov r10d,[mesh_pair+4]
@@ -492,8 +493,8 @@ FRAME play_rebuild,136
  GLCALL glGetError
  test eax,eax
  jnz .bad
- lea r10,[entries]
- mov ecx,400
+ mov r10,[world+8]
+ mov rcx,[world+24]
 .clean:
  mov qword [r10+56],0
  add r10,64
@@ -3036,6 +3037,13 @@ FRAME play_sky,40
  GLCALL glEnable
 END_FRAME play_sky,40
 FRAME play_far_rebuild,40
+ cmp qword [world+48],-1
+ jne .legacy
+ mov qword [lod_config+48],0
+ mov dword [far_dirty],0
+ xor eax,eax
+ jmp .done
+.legacy:
  lea r10,[world]
  mov [lod_config],r10
  lea r10,[far_vertices]
@@ -3201,6 +3209,9 @@ FRAME play_draw,40
 .done:
 END_FRAME play_draw,40
 FRAME play_shutdown,56
+ call play_region_close
+ test rax,rax
+ jnz .region_failed
  cmp dword [shadow_framebuffer],0
  je .shadow_texture
  mov A0,1
@@ -3273,6 +3284,9 @@ FRAME play_shutdown,56
  mov dword [fragment_shader],0
 .done:
  xor eax,eax
+ jmp .region_exit
+.region_failed:
+.region_exit:
 END_FRAME play_shutdown,56
 FRAME play_preferences_save,120
  mov [rsp+104],A0
@@ -3322,6 +3336,13 @@ FRAME play_preferences_load,184
 END_FRAME play_preferences_load,184
 FRAME play_save,56
  mov [rsp+40],A0
+ cmp qword [world+48],-1
+ jne .legacy
+ call play_region_save
+ test rax,rax
+ jnz .fail
+ jmp .saved
+.legacy:
  lea A0,[world]
  lea A1,[player]
  lea A2,[inventory]
@@ -3335,6 +3356,7 @@ FRAME play_save,56
  call file_save
  test rax,rax
  jnz .fail
+.saved:
  lea r10,[saved_text]
  mov [status],r10
  jmp .done
@@ -3344,6 +3366,13 @@ FRAME play_save,56
 .done:
 END_FRAME play_save,56
 FRAME play_load,40
+ cmp qword [world+48],-1
+ jne .legacy
+ call play_region_load
+ test rax,rax
+ jnz .fail
+ jmp .loaded
+.legacy:
  lea A1,[save_buffer]
  mov A2,262608
  call file_load
@@ -3356,6 +3385,7 @@ FRAME play_load,40
  call game_decode
  test rax,rax
  jnz .fail
+.loaded:
  mov dword [options+24],0
  mov dword [options+28],0
  mov dword [space_pending],0
@@ -3377,6 +3407,7 @@ FRAME play_load,40
  mov [status],r10
 .done:
 END_FRAME play_load,40
+%include "src/render/play_region.inc"
 section .rdata align=8
 fantasy_trim:
  dd 148.0,68.0,344.0,2.0, 0.67,0.47,0.22,0.0
@@ -3593,7 +3624,7 @@ neighbors: resq 6
 faces: resb 24576*8
 target: resb 32
 scratch_vertices: resb 147456*24
-vertices: resb 1000000*32
+vertices: resb 4000000*32
 lod_cache: resb 360480
 lod_config: resb 64
 far_vertices: resb 65536*32

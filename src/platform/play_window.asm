@@ -9,6 +9,7 @@ extern SDL_SetRelativeMouseMode, SDL_GetKeyboardState, SDL_GL_SwapWindow
 extern SDL_GetModState, SDL_GetWindowSize
 extern SDL_PollEvent, SDL_Delay, SDL_GetError, SDL_GetTicks
 extern puts, strcmp, seed_numeric
+extern play_region_seed, play_region_open
 extern play_init, play_shutdown, play_draw, play_resize, play_step, play_look
 extern play_graphics, play_get_graphics
 extern play_far_distance, play_get_far_distance
@@ -30,6 +31,7 @@ FRAME main,120
  mov qword [rsp+88],0
  mov qword [rsp+104],0
  mov qword [rsp+112],1
+ mov qword [region_path],0
  cmp A0,1
  je .init
  cmp A0,3
@@ -47,6 +49,21 @@ FRAME main,120
 .seed_arg:
  mov [rsp+96],A1
  mov r10,A1
+ mov A0,[r10+8]
+ lea A1,[region_arg]
+ call strcmp
+ test eax,eax
+ jnz .numeric_seed
+ mov r10,[rsp+96]
+ mov rax,[r10+16]
+ mov [region_path],rax
+ mov A0,rax
+ call play_region_seed
+ test rax,rax
+ jnz .region_error
+ jmp .init
+.numeric_seed:
+ mov r10,[rsp+96]
  mov A0,[r10+8]
  lea A1,[seed_arg]
  call strcmp
@@ -141,6 +158,13 @@ FRAME main,120
  call play_init
  test rax,rax
  jnz .pixel_error
+ cmp qword [region_path],0
+ je .region_ready
+ mov A0,[region_path]
+ call play_region_open
+ test rax,rax
+ jnz .region_error
+.region_ready:
  cmp qword [rsp+80],0
  jne .preferences_ready
  call window_preferences_init
@@ -793,11 +817,17 @@ FRAME main,120
  jne .no_exit_save
  mov A0,2
  call window_autosave
+ test rax,rax
+ js .loop ; failed save retains the live world so the player can retry
 .no_exit_save:
  mov qword [rsp+112],0
  jmp .cleanup
 .pixel_error:
  lea A0,[pixel_fail]
+ call puts
+ jmp .cleanup
+.region_error:
+ lea A0,[region_failure]
  call puts
  jmp .cleanup
 .usage:
@@ -884,7 +914,7 @@ FRAME window_autosave,56
  lea A0,[autosave_clock]
  call autosave_poll
  cmp rax,1
- jne .done
+ jne .not_due
  lea A0,[save_path]
  call play_save
  mov [rsp+48],rax
@@ -907,22 +937,27 @@ FRAME window_autosave,56
  lea A0,[auto_fail]
 .message:
  call puts
+ mov rax,[rsp+48]
+ jmp .done
+.not_due: xor eax,eax
 .done:
 END_FRAME window_autosave,56
 section .rdata
+region_arg: db '--region-world',0
+region_failure: db 'Region world failed to load or upgrade. Keep the original save; check the directory, saved seed, data and .tmp files.',0
 seed_arg: db '--seed',0
 smoke_arg: db '--smoke',0
 title: db 'VoxelA - WASD walk, mouse look, Space jump, Shift sprint, 1-6 blocks, F5 save/F9 load, Esc release mouse, F10 quit',0
-usage: db 'Usage: voxela-window [--smoke | --seed <decimal-or-hex-seed>]',0
+usage: db 'Usage: voxela-window [--smoke | --seed <decimal-or-hex-seed> | --region-world <existing-directory>]',0
 startup_fail: db 'SDL/OpenGL startup failed (OpenGL 3.3 and relative mouse required).',0
 pixel_fail: db 'FAIL: first-person renderer frame/readback',0
 smoke_pass: db 'PASS: first-person terrain textures and HUD, three OpenGL frames and terrain readback',0
 save_path: db 'voxela-world.vxa',0
-save_pass: db 'Saved player and streamed edits and inventory to voxela-world.vxa.',0
-load_pass: db 'Loaded player and streamed edits and inventory from voxela-world.vxa.',0
+save_pass: db 'Saved terrain, player and inventory.',0
+load_pass: db 'Loaded player and inventory.',0
 save_fail: db 'Save failed or durability uncertain. Current edits retained; check directory and .tmp file.',0
 load_fail: db 'Load failed: missing, corrupt, incompatible seed, or unsafe player pose. World preserved.',0
-edit_fail: db 'Edit refused: unavailable terrain or full bounded edit journal. Save and inspect limits.',0
+edit_fail: db 'Edit refused: unavailable terrain or storage limit. Save and inspect limits.',0
 p0: db 'glClearColor',0
 p1: db 'glClear',0
 p2: db 'glViewport',0
@@ -964,6 +999,7 @@ menu_x: resq 1
 menu_y: resq 1
 menu_event_mode: resb 1
 menu_action: resb 1
+region_path: resq 1
 autosave_clock: resb 16
 settings_state: resb 32
 setting_index: resd 1

@@ -21,15 +21,24 @@ grid, a searchable/scrollable recipe book, player preview and armor silhouettes,
 pickaxe wear, and manual/automatic checksummed saves.
 F4 switches between finite Survival resources and an unlimited Creative palette.
 
-Terrain is frozen generator0: heights64–79, surface layers and climate-derived
-biome labels. Trees, caves, true mountains, liquids and creatures are absent.
-The full-detail view is a synchronous5×5-column cache,400 sections at Y0–255, with
-an8,192-edit journal. It is not the requested16-near/64-far renderer or1,024-block
-world. Progressive surface meshes now extend the view to 2–256 chunks, default
-64, using the actual generator and saved surface edits. The separate 11-biome
-landscape sampler is CPU-only until a versioned block generator adopts it. Health/hunger and physical item drops remain pending. Creative flight and
-player settings, graphics quality and far distance now persist in the per-user
-application directory. Active flight remains transient.
+Default launch retains generator0 (heights64–79), a synchronous5×5-column cache
+atY0–255 and an8192-edit journal. Its progressive surface horizon supports2–256
+chunks (default64) from actual legacy generator/saved edits.
+
+**Experimental region gameplay is now opt-in with `--region-world <directory>`.**
+It upgrades a legacy save into a separate directory, preserves recorded old
+terrain/edits/player/inventory, and connects region blocks to the window, meshes,
+collision, picking and saves acrossY−256–767. New columns use generator1's eleven
+terrain/climate profiles and cave fields; recorded transitions persist. Region
+edits have no global journal ceiling. The original legacy save remains intact.
+See [region gameplay and upgrade instructions](docs/region-gameplay.md).
+
+This mode still has a synchronous5×5 near view; distant terrain is disabled until
+it can derive from saved regions. Neither mode provides the requested16-near/
+64-far default. Trees, liquids, creatures, health/hunger and physical item drops
+remain pending; biome resources/material detail and guaranteed connected caves
+are unfinished. Player settings, graphics quality and legacy far distance
+persist per user. Active flight remains transient.
 
 Chest/table storage, stable container IDs, registry2 inventory and2×2/3×3 recipe
 transactions are **CPU-only**. They do not yet create playable container blocks,
@@ -85,7 +94,7 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | Double Space / Space / Left Ctrl | Creative flight toggle / fly up / fly down |
 | [ / ] / - / = | FOV decrease/increase / sensitivity decrease/increase |
 | I / T / F3 / , / . | Invert mouse / toggle sprint / coordinates / slower/faster flight |
-| F7 / F8 | Halve / double simplified far radius, 2–256 chunks; default 64 |
+| F7 / F8 | Legacy mode: halve/double simplified far radius, 2–256 chunks; default64 |
 | F6 | Cycle Low / Balanced / High graphics (default High) |
 | F4 / middle mouse | Toggle Creative / copy aimed supported block in Creative |
 | E / Tab or book button | Inventory / switch player-and-armor area to recipe book |
@@ -95,7 +104,7 @@ headless `voxela` executable is a terrain/test demonstration, not the player gam
 | Result click / Shift-result | Craft one batch / repeat while ingredients fit |
 | Backspace | Return player-grid ingredients atomically to the bag |
 | Z/X/C/V | Legacy bulk planks/sticks/wood-pick/stone-pick shortcuts |
-| F5 / F9 | Save / load `voxela-world.vxa` in the current working directory |
+| F5 / F9 | Legacy: save/load `voxela-world.vxa`; region mode: save/reload player/inventory with current region terrain |
 | Escape / left click / F10 | Pause and release mouse / resume / quit |
 
 Survival starts with32dirt/8wood until trees/resources are implemented. Resources
@@ -305,37 +314,40 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 
 - [ ] Title screen, named world list, create/delete UI, seed and mode/difficulty entry.
 - [ ] Per-user world directories, settings and crash-safe metadata files.
-- [x] CPU/file-only: checksummed mixed-generator terrain regions preserving complete sections and edits.
-- [x] CPU/file-only: bounded region LRU with revision-checked persistence and dirty-eviction refusal.
-- [x] CPU/file-only: region-backed get/edit/flush/close, signed addressing, staged load and safe dirty-victim saves without a global journal ceiling.
-- [x] CPU/file-only: resumable legacy snapshot import preserving recorded generator0 columns/edits and checkpointing original player/inventory data last.
-- [x] CPU/file-only: new-side surface blending from complete recorded old columns, including dirty edits, deterministic corners and saved transitions.
-- [ ] Playable adoption/publication of imported worlds and region-backed streaming.
-- [ ] Adopt region-backed terrain/edits/containers/entities in gameplay; remove global-journal limits.
-- [ ] Persist generator version per recorded chunk; explicit legacy import rules.
+- [x] Experimental region mode: checksummed mixed-generator terrain regions preserving complete sections and edits.
+- [x] Experimental region mode: bounded region LRU with revision-checked persistence and dirty-eviction refusal.
+- [x] Experimental region mode: region-backed get/edit/flush/close, signed addressing, staged load and safe dirty-victim saves without a global journal ceiling.
+- [x] Experimental region mode: resumable legacy snapshot import preserving recorded generator0 columns/edits and checkpointing original player/inventory data last.
+- [x] Experimental region mode: new-side surface blending from complete recorded old columns, including dirty edits, deterministic corners and saved transitions.
+- [x] Experimental window integration: frozen-source upgrade recovery, completion-gated player/inventory adoption and full-height region-backed residency.
+- [ ] Native Windows graphics verification, region-backed distant meshes and budgeted loading.
+- [x] Experimental region mode: adopt terrain/edits in gameplay without a global journal limit.
+- [ ] Adopt container/entity ownership and persistence in the region world.
+- [x] Experimental region mode: persist generator version per recorded section with explicit legacy import rules.
 - [ ] Bounded distance-prioritized generation/mesh/upload queues and cancellation.
 - [ ] Budgeted work per frame; incremental chunk meshes and frustum culling.
 - [ ] Greedy/equivalent mesh reduction, sparse vertical sections and memory budgets.
 - [ ] Thread workers only after ownership/revision/cancellation contracts pass.
 - [ ] Independently adjustable full-detail radius and simplified distant terrain.
-- [x] Expose2–256 simplified far radius, default64, with F7/F8 and HUD feedback.
+- [x] Legacy mode: expose2–256 simplified far radius, default64, with F7/F8 and HUD feedback.
 - [ ] Reach16-chunk full detail and measured smooth asynchronous loading.
 - [ ] Stress rapid traversal, teleports, edits, distance changes and world borders.
 
 ### 6. Terrain, biomes, caves and liquids
 
 - [x] Frozen generator0 seed/noise/section golden fixtures and negative-coordinate checks.
-- [x] CPU-only: separate seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs.
-- [x] CPU-only: candidate generator1 block/section path for Y−256–767, biome surfaces and deterministic global cave fields.
-- [x] CPU-only: independently modeled quintic 3D noise, cave roofs/floors and cross-section sampling.
-- [ ] Extend every vertical lookup/cache/save/physics/render path to Y−256–767.
+- [x] Shared seed-reproducible 11-biome climate/heightfield sampler, tested on both ABIs and used by region generator1.
+- [x] Experimental region mode: generator1 block/section path for Y−256–767, biome surfaces and deterministic global cave fields.
+- [x] Independently modeled quintic 3D noise, cave roofs/floors and cross-section sampling, used by region generator1.
+- [x] Experimental region mode: full-height lookup/cache/player saves/physics/picking/render paths; legacy formats retain frozen bounds.
 - [ ] Versioned continentalness/elevation/temperature/moisture fields and biome blends.
 - [ ] Plains/forests/deserts/mountains/oceans/rivers with distinct profiles/materials.
 - [ ] Rare extremes and unusual realistic/fantasy biomes at the agreed frequency.
 - [ ] Connected caves, entrances, deep valleys and occasional huge caverns.
 - [ ] Deterministic trees, vegetation, ores and cross-chunk feature ownership.
-- [x] CPU/file-only: preserve recorded old terrain; implement new-side generator surface blending.
-- [ ] Adopt upgraded terrain in gameplay and resolve legacy vertical/cave boundaries.
+- [x] Experimental region mode: preserve recorded old terrain; implement new-side generator surface blending.
+- [x] Experimental window: adopt upgraded terrain; preserve old floor/sections and bound new vertical extension by actual old surfaces.
+- [ ] Synthesize cross-version cave connectivity and optimize streaming/meshing.
 - [ ] Water/lava simulation, sources/flow, collision, lighting and persistence.
 - [ ] Transparent/cutout passes with correct sorting/visibility for liquids/glass/leaves.
 - [ ] Confirm biome/ore/cave distributions before freezing final generator fixtures.
@@ -418,3 +430,5 @@ See [versioned terrain region contracts](docs/regions.md) for recorded-block pre
 See [bounded world store and legacy migration](docs/world-store.md) for ownership, failure and integration contracts.
 
 See [recorded-terrain transition contracts](docs/terrain-blending.md) for the blend width, actual-block profiles and pending playable integration.
+
+The opt-in region mode is documented in [region gameplay](docs/region-gameplay.md); native Windows graphics and larger/budgeted views remain validation and implementation gates.

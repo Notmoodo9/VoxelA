@@ -408,4 +408,249 @@ FRAME region_generate_blend,120
 .done:
 END_FRAME region_generate_blend,120
 
+
+
+; Highest recorded surface for every cell of a complete old column.
+FRAME legacy_column_profile,1096
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ mov A2,A1
+ lea A2,[rsp+64]
+ xor A1,A1
+ call legacy_edge_profile ; validates all sixteen complete sections first
+ test rax,rax
+ jnz .done
+ xor r8d,r8d
+.column:
+ mov r10d,255
+.scan:
+ mov rax,r10
+ shr rax,4
+ mov r11,[rsp+32]
+ mov r11,[r11+rax*8]
+ mov rax,r10
+ and eax,15
+ shl rax,8
+ add rax,r8
+ cmp word [r11+rax*2],0
+ jne .height
+ dec r10
+ jns .scan
+.height:
+ mov [rsp+64+r8*4],r10d
+ inc r8
+ cmp r8,256
+ jb .column
+ mov r10,[rsp+40]
+ xor ecx,ecx
+.publish:
+ mov rax,[rsp+64+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,1024
+ jb .publish
+ xor eax,eax
+.done:
+END_FRAME legacy_column_profile,1096
+; UpgradeProfile1296: edge264, own-column flag264, I32 heights256 at272.
+; A complete recorded old column supplies the ceiling for its vertical extension.
+FRAME terrain1_upgrade_column,120
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ mov [rsp+48],A2
+ mov [rsp+56],A3
+ cmp qword [A2+264],1
+ ja .bad
+ cmp qword [A2+264],0
+ je .validated
+ xor ecx,ecx
+.values:
+ cmp dword [A2+272+rcx*4],0
+ jl .bad
+ cmp dword [A2+272+rcx*4],255
+ jg .bad
+ inc ecx
+ cmp ecx,256
+ jb .values
+.validated:
+ mov A0,[rsp+32]
+ mov A1,[rsp+40]
+ mov A2,[rsp+48]
+ lea A3,[rsp+64]
+ call terrain1_blend_column
+ test rax,rax
+ jnz .done
+ mov r10,[rsp+48]
+ cmp qword [r10+264],0
+ je .publish
+ mov r11,[rsp+40]
+ mov rax,[r11+16]
+ and eax,15
+ shl eax,4
+ mov r11,[r11]
+ and r11d,15
+ add rax,r11
+ mov eax,[r10+272+rax*4]
+ mov [rsp+64],eax
+.publish:
+ mov r10,[rsp+56]
+ movups xmm0,[rsp+64]
+ movups xmm1,[rsp+80]
+ movups [r10],xmm0
+ movups [r10+16],xmm1
+ xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME terrain1_upgrade_column,120
+
+FRAME generate_section_upgrade,184
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ mov [rsp+144],A3
+ mov rax,[A2]
+ cmp rax,-1875000
+ jl .bad
+ cmp rax,1875000
+ jge .bad
+ shl rax,4
+ mov [rsp+48],rax
+ mov rax,[A2+8]
+ cmp rax,-16
+ jl .bad
+ cmp rax,48
+ jge .bad
+ shl rax,4
+ mov [rsp+56],rax
+ mov rax,[A2+16]
+ cmp rax,-1875000
+ jl .bad
+ cmp rax,1875000
+ jge .bad
+ shl rax,4
+ mov [rsp+64],rax
+ ; Validate the entire profile before writing any destination cells.
+ mov A0,[rsp+40]
+ lea A1,[rsp+48]
+ mov A2,[rsp+144]
+ lea A3,[rsp+104]
+ call terrain1_upgrade_column
+ test rax,rax
+ jnz .done
+ mov qword [rsp+72],0
+.column:
+ mov rax,[rsp+72]
+ mov r10,rax
+ and eax,15
+ shr r10,4
+ add rax,[rsp+48]
+ add r10,[rsp+64]
+ mov [rsp+80],rax
+ mov [rsp+96],r10
+ mov A0,[rsp+40]
+ lea A1,[rsp+80]
+ mov A2,[rsp+144]
+ lea A3,[rsp+104]
+ call terrain1_upgrade_column
+ test rax,rax
+ jnz .done
+ mov qword [rsp+136],0
+.vertical:
+ mov rax,[rsp+56]
+ add rax,[rsp+136]
+ mov [rsp+88],rax
+ mov A0,[rsp+40]
+ lea A1,[rsp+80]
+ lea A2,[rsp+104]
+ call generated_block1
+ mov r10,[rsp+136]
+ shl r10,8
+ add r10,[rsp+72]
+ mov r11,[rsp+32]
+ mov [r11+r10*2],ax
+ inc qword [rsp+136]
+ cmp qword [rsp+136],16
+ jb .vertical
+ inc qword [rsp+72]
+ cmp qword [rsp+72],256
+ jb .column
+ xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME generate_section_upgrade,184
+
+FRAME region_generate_upgrade,120
+ mov [rsp+32],A0
+ mov [rsp+40],A1
+ mov [rsp+48],A2
+ cmp A1,16
+ jae .bad
+ call region_valid
+ test rax,rax
+ jnz .bad
+ mov r10,[rsp+32]
+ mov rcx,[rsp+40]
+ bt qword [r10+32],rcx
+ jc .exists
+ mov rax,0x7fffffffffffffff
+ cmp [r10+40],rax
+ je .bad
+.allocate:
+ mov A0,8192
+ CCALL malloc
+ test rax,rax
+ jz .bad
+ mov [rsp+56],rax
+ mov r10,[rsp+32]
+ mov rcx,[rsp+40]
+ mov rax,[r10+8]
+ shl rax,2
+ mov r11,rcx
+ and r11d,3
+ add rax,r11
+ mov [rsp+64],rax
+ mov rax,[r10+24]
+ mov [rsp+72],rax
+ mov rax,[r10+16]
+ shl rax,2
+ shr rcx,2
+ add rax,rcx
+ mov [rsp+80],rax
+ mov A0,[rsp+56]
+ mov A1,[r10]
+ lea A2,[rsp+64]
+ mov A3,[rsp+48]
+ call generate_section_upgrade
+.generated:
+ mov [rsp+88],rax
+ test rax,rax
+ jnz .release
+ mov r10,[rsp+32]
+ mov rcx,[rsp+40]
+ mov r11,rcx
+ shl r11,13
+ lea r11,[r10+192+r11]
+ mov r8,[rsp+56]
+ xor edx,edx
+.copy:
+ mov rax,[r8+rdx]
+ mov [r11+rdx],rax
+ add edx,8
+ cmp edx,8192
+ jb .copy
+ mov dword [r10+64+rcx*8],1
+ bts qword [r10+32],rcx
+ inc qword [r10+40]
+ mov qword [rsp+88],1
+.release:
+ mov A0,[rsp+56]
+ CCALL free
+ mov rax,[rsp+88]
+ jmp .done
+.exists: xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME region_generate_upgrade,120
 ELF_STACK

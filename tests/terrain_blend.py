@@ -18,6 +18,9 @@ for face in range(4):
  indices=[z*16+(0 if face==0 else 15) for z in range(16)] if face<2 else [x+(0 if face==2 else 240) for x in range(16)]
  assert list((C.c_int32*16).from_buffer(result))==[tops[i] for i in indices]
  assert result.raw[64:]==b'\xa5'*16
+full=bind('legacy_column_profile',[P,P]);fullout=C.create_string_buffer(1040);C.memset(fullout,0xa5,1040)
+assert full(ptrs,fullout)==0 and list((C.c_int32*256).from_buffer(fullout))==tops
+assert fullout.raw[1024:]==b'\xa5'*16
 # Validation must inspect all sections, including blocks away from selected face.
 sections[9][1023]=8;before=actual.raw
 assert edge(ptrs,0,actual)==-1 and actual.raw==before
@@ -102,4 +105,15 @@ assert rgen(region,2,profile)==-1 and region.raw==before
 mask.value=0;U.from_buffer(region,40).value=(1<<63)-1;before=region.raw
 assert rgen(region,2,profile)==-1 and region.raw==before
 assert rgen(region,16,profile)==-1 and region.raw==before
+upgrade=bind('terrain1_upgrade_column',[U,P,P,P]);upsection=bind('generate_section_upgrade',[P,U,P,P]);up=C.create_string_buffer(1296);C.memmove(up,profile,264);U.from_buffer(up,264).value=1
+own=(C.c_int32*256).from_buffer(up,272)
+for i in range(256):own[i]=70+(i%16)
+for x,z in [(-1,-1),(0,0),(15,15),(-16,16),(29999999,-30000000)]:
+ coords[:]=(x,0,z);assert column(42,x,z,native)==0 and upgrade(42,coords,up,actual)==0
+ assert C.c_int32.from_buffer(actual).value==own[(z%16)*16+x%16] and actual.raw[4:32]==native.raw[4:]
+assert upsection(out,42,(I*3)(0,16,0),up)==0 and out.raw[:8192]==bytes(8192),'old upper extension created floating terrain'
+before=out.raw;own[255]=256
+assert upsection(out,42,(I*3)(0,16,0),up)==-1 and out.raw==before
+own[255]=85;U.from_buffer(up,264).value=2;before=actual.raw
+assert upgrade(42,coords,up,actual)==-1 and actual.raw==before
 print(f'PASS: recorded edited-edge extraction, {checks} independent blend columns, all masks/corners, full-height sections, no-edge equivalence and rejection canaries')

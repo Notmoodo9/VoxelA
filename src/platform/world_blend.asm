@@ -1,28 +1,37 @@
 %include "abi.inc"
 section .text
 extern malloc, free, world_path, region_file_load_optional, legacy_edge_profile
-extern region_generate, region_generate_blend
+extern region_generate, region_generate_blend, region_generate_upgrade
+extern legacy_column_profile
 ; Internal synchronous read-only resolver. Requires canonical store/current region.
 ; Four complete recorded generator0 neighbor columns qualify. No generation on read.
-FRAME world_store_blend_profile,1256
+FRAME world_store_upgrade_profile,1256
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
  mov [rsp+56],A3
- mov A0,262600 ; scratch region, sixteen sections, staged profile
+ mov A0,263632 ; scratch region, sixteen sections, staged upgrade profile
  CCALL malloc
  test rax,rax
  jz .bad
  mov [rsp+64],rax
  lea r10,[rax+262336]
  xor eax,eax
- mov ecx,33
+ mov ecx,162
 .clear:
  mov [r10],rax
  add r10,8
  loop .clear
  mov qword [rsp+72],0
-.face:
+ .face:
+ cmp qword [rsp+72],4
+ jne .face_ready
+ mov r10,[rsp+40]
+ cmp qword [r10+8],0
+ jl .face_ready
+ cmp qword [r10+8],16
+ jb .next_face
+.face_ready:
  mov r10,[rsp+40]
  mov rax,[r10]
  mov r11,[r10+16]
@@ -40,7 +49,10 @@ FRAME world_store_blend_profile,1256
  jne .south
  dec r11
  jmp .neighbor
-.south: inc r11
+.south:
+ cmp qword [rsp+72],3
+ jne .neighbor
+ inc r11
 .neighbor:
  cmp rax,-1875000
  jl .next_face
@@ -131,6 +143,8 @@ FRAME world_store_blend_profile,1256
  inc qword [rsp+120]
  cmp qword [rsp+120],16
  jb .section
+ cmp qword [rsp+72],4
+ je .own_column
  lea A0,[rsp+128]
  mov A1,[rsp+72]
  xor A1,1 ; read the neighbor face facing this new section
@@ -144,9 +158,19 @@ FRAME world_store_blend_profile,1256
  mov r10,[rsp+64]
  mov rcx,[rsp+72]
  bts qword [r10+262336],rcx
+ jmp .next_face
+.own_column:
+ lea A0,[rsp+128]
+ mov r10,[rsp+64]
+ lea A1,[r10+262608]
+ call legacy_column_profile
+ test rax,rax
+ jnz .release
+ mov r10,[rsp+64]
+ mov qword [r10+262600],1
 .next_face:
  inc qword [rsp+72]
- cmp qword [rsp+72],4
+ cmp qword [rsp+72],5
  jb .face
  mov r10,[rsp+64]
  add r10,262336
@@ -156,7 +180,7 @@ FRAME world_store_blend_profile,1256
  mov rax,[r10+rcx]
  mov [r11+rcx],rax
  add ecx,8
- cmp ecx,264
+ cmp ecx,1296
  jb .publish
  xor eax,eax
  jmp .release
@@ -169,7 +193,7 @@ FRAME world_store_blend_profile,1256
  jmp .done
 .bad: mov rax,-1
 .done:
-END_FRAME world_store_blend_profile,1256
+END_FRAME world_store_upgrade_profile,1256
 ; Private leaf: stack has one return address beyond frame. No register clobbers
 ; other than RAX/R8/R9. The cache loop keeps RCX/R11 untouched.
 world_blend_matches:
@@ -192,7 +216,7 @@ world_blend_matches:
 .no: xor eax,eax
  ret
 ; Internal generator dispatcher. No resident/staged mutation on resolver failure.
-FRAME world_store_generate,360
+FRAME world_store_generate,1400
  mov [rsp+32],A0
  mov [rsp+40],A1
  mov [rsp+48],A2
@@ -228,15 +252,35 @@ FRAME world_store_generate,360
  lea A1,[rsp+64]
  mov A2,[rsp+40]
  lea A3,[rsp+88]
- call world_store_blend_profile
+ call world_store_upgrade_profile
  test rax,rax
  jnz .done
  mov A0,[rsp+40]
  mov A1,[rsp+48]
  lea A2,[rsp+88]
- call region_generate_blend
+ call region_generate_upgrade
  jmp .done
 .exists: xor eax,eax
 .done:
-END_FRAME world_store_generate,360
+END_FRAME world_store_generate,1400
+
+
+; Edge-only compatibility view for callers using the original264-byte profile.
+FRAME world_store_blend_profile,1352
+ mov [rsp+32],A3
+ lea A3,[rsp+48]
+ call world_store_upgrade_profile
+ test rax,rax
+ jnz .done
+ mov r10,[rsp+32]
+ xor ecx,ecx
+.copy:
+ mov rax,[rsp+48+rcx]
+ mov [r10+rcx],rax
+ add ecx,8
+ cmp ecx,264
+ jb .copy
+ xor eax,eax
+.done:
+END_FRAME world_store_blend_profile,1352
 ELF_STACK

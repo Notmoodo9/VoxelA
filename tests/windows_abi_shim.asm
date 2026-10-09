@@ -296,7 +296,13 @@ SHIM region_cache_evict
 SHIM region_cache_reserve
 SHIM region_cache_find
 SHIM region_cache_publish
+SHIM region_player_encode
+SHIM region_player_decode
 SHIM region_generate_blend
+SHIM legacy_column_profile
+SHIM terrain1_upgrade_column
+SHIM generate_section_upgrade
+SHIM region_generate_upgrade
 SHIM legacy_edge_profile
 SHIM terrain1_blend_column
 SHIM generate_section_blend

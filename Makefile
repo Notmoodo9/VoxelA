@@ -27,7 +27,7 @@ endif
 else
 FLAGS += -Ox
 endif
-CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm src/world/terrain_surface.asm src/render/terrain_lod.asm src/world/noise3.asm src/world/generator1.asm src/game/mining_policy.asm src/game/preferences.asm src/world/region.asm src/world/region_cache.asm src/world/world_address.asm src/world/terrain_blend.asm
+CORE = src/core/hash.asm src/core/arena.asm src/core/seed.asm src/world/blocks.asm src/world/noise.asm src/world/generate.asm src/world/cache.asm src/render/mesh.asm src/render/vertices.asm src/game/camera.asm src/world/raycast.asm src/game/picking.asm src/world/snapshot.asm src/world/stream.asm src/game/player.asm src/world/walk_save.asm src/game/inventory.asm src/world/game_save.asm src/game/frame_stats.asm src/game/inventory36.asm src/world/game36_save.asm src/game/crafting.asm src/game/ui_layout.asm src/world/game_grid_save.asm src/game/container.asm src/world/container_save.asm src/game/recipes.asm src/world/container_store.asm src/game/registry.asm src/game/recipe_catalog.asm src/game/inventory2.asm src/game/grid_craft.asm src/world/blocks2.asm src/world/cache2.asm src/world/stream2.asm src/render/mesh2.asm src/render/vertices2.asm src/game/player2.asm src/world/walk_save2.asm src/world/raycast2.asm src/game/settings.asm src/game/flight.asm src/game/autosave.asm src/core/format.asm src/game/recipe_book.asm src/world/landscape.asm src/world/terrain_surface.asm src/render/terrain_lod.asm src/world/noise3.asm src/world/generator1.asm src/game/mining_policy.asm src/game/preferences.asm src/world/region.asm src/world/region_cache.asm src/world/world_address.asm src/world/terrain_blend.asm src/world/region_player.asm
 OBJECTS = $(patsubst %.asm,$(BUILD)/%.o,$(CORE))
 .PHONY: all test objects clean reference
 all: $(BUILD)/voxela$(EXT)
@@ -72,6 +72,7 @@ reference: $(BUILD)/libvoxela.so
 	python3 tests/region_cache.py $(BUILD)/libvoxela.so
 	python3 tests/world_address.py $(BUILD)/libvoxela.so
 	python3 tests/terrain_blend.py $(BUILD)/libvoxela.so
+	python3 tests/region_player.py $(BUILD)/libvoxela.so
 	python3 tests/terrain_lod.py $(BUILD)/libvoxela.so
 	python3 tests/recipes.py $(BUILD)/libvoxela.so
 	python3 tests/crafting.py $(BUILD)/libvoxela.so
@@ -123,6 +124,7 @@ abi-reference: $(BUILD)/libwindows_abi.so
 	python3 tests/region_cache.py $<
 	python3 tests/world_address.py $<
 	python3 tests/terrain_blend.py $<
+	python3 tests/region_player.py $<
 	python3 tests/terrain_lod.py $<
 	python3 tests/recipes.py $<
 	python3 tests/crafting.py $<
@@ -136,7 +138,7 @@ endif
 # Optional SDL/OpenGL bootstrap; headless targets do not require SDL.
 SDL_LIBS ?= -lSDL2
 .PHONY: window
-IO_OBJECT = $(BUILD)/src/platform/save_file.o $(BUILD)/src/platform/region_file.o $(BUILD)/src/platform/world_store.o $(BUILD)/src/platform/legacy_import.o $(BUILD)/src/platform/world_blend.o
+IO_OBJECT = $(BUILD)/src/platform/save_file.o $(BUILD)/src/platform/region_file.o $(BUILD)/src/platform/world_store.o $(BUILD)/src/platform/legacy_import.o $(BUILD)/src/platform/world_blend.o $(BUILD)/src/platform/region_stream.o $(BUILD)/src/platform/legacy_player.o
 window: $(BUILD)/voxela-window$(EXT)
 $(BUILD)/src/render/terrain.o: assets/shaders/terrain.vert assets/shaders/terrain.frag include/gl.inc include/gl_names.inc
 $(BUILD)/voxela-window$(EXT): $(OBJECTS) $(BUILD)/src/platform/play_window.o $(BUILD)/src/render/play.o $(IO_OBJECT)
@@ -177,14 +179,17 @@ save-reference: $(SAVE_LIBRARY)
 	python3 tests/world_store.py $<
 	python3 tests/world_blend.py $<
 	python3 tests/legacy_import.py $<
+	python3 tests/region_stream.py $<
+	python3 tests/legacy_player.py $<
 
-$(BUILD)/src/render/play.o: assets/shaders/play.vert assets/shaders/play.frag assets/textures/blocks.rgba assets/textures/font5x7.bin include/gl.inc include/gl_names.inc
+$(BUILD)/src/render/play.o: src/render/play_region.inc assets/shaders/play.vert assets/shaders/play.frag assets/textures/blocks.rgba assets/textures/font5x7.bin include/gl.inc include/gl_names.inc
 ifeq ($(TARGET),linux)
 $(BUILD)/libplay.so: $(OBJECTS) $(BUILD)/src/render/play.o $(IO_OBJECT)
 	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ $(SDL_LIBS) $(MATH_LIBS) -o $@
 .PHONY: play-reference
 play-reference: $(BUILD)/libplay.so
 	python3 tests/play.py $<
+	python3 tests/region_play.py $<
 endif
 
 # Keep the bounded orthographic demo for regression and old demo saves.
@@ -195,9 +200,12 @@ $(BUILD)/voxela-demo$(EXT): $(OBJECTS) $(BUILD)/src/platform/window.o $(BUILD)/s
 ifeq ($(TARGET),linux)
 $(BUILD)/input_driver.so: $(BUILD)/tests/input_driver.o
 	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ -o $@
+$(BUILD)/region_input_driver.so: $(BUILD)/tests/region_input_driver.o
+	$(LINKER) -shared -Wl,-Bsymbolic -Wl,-z,noexecstack $^ -o $@
 .PHONY: window-reference
-window-reference: $(BUILD)/voxela-window $(BUILD)/input_driver.so
-	python3 tests/window_play.py $^
+window-reference: $(BUILD)/voxela-window $(BUILD)/input_driver.so $(BUILD)/region_input_driver.so $(SAVE_LIBRARY)
+	python3 tests/window_play.py $(BUILD)/voxela-window $(BUILD)/input_driver.so
+	python3 tests/region_window.py $(BUILD)/voxela-window $(BUILD)/region_input_driver.so $(SAVE_LIBRARY)
 endif
 
 # Registry2 wrappers include the shared source; rebuild whenever it changes.

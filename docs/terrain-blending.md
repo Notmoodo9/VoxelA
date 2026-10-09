@@ -1,7 +1,7 @@
 # Recorded-terrain border blending
 
-Implemented in the CPU/file world store; the playable window still uses its
-legacy stream. Recorded generator0 sections and edits are never modified by
+Implemented in the world store and adopted by the experimental region window
+mode. Default launch retains its legacy stream. Recorded generator0 sections and edits are never modified by
 blending. A shared region file may be rewritten to persist new sibling sections,
 while all old section metadata and block bytes remain unchanged.
 Only a missing generator1 section can receive a transition. A recorded section,
@@ -28,8 +28,10 @@ a partially recorded column cannot establish its actual highest block.
 This is a surface-height transition. It does not copy old block materials,
 reconstruct unrecorded exploration, interpolate cave connectivity, or move the
 old bedrock floor fromY0. Generator1 retains its climate/material rules, cave
-field and floor atY−256. Vertical extension of old columns remains a separate
-integration policy; no old section is changed to conceal these differences.
+field and floor atY−256. Complete old columns now supply an actual256-cell
+surface grid for their vertical extension: new upper sections stay air and lower
+sections use generator1 underground rules under the preserved Y0 floor. No old
+section is modified. See region-gameplay.md for access/connectivity limits.
 
 ## Deterministic transition
 
@@ -78,9 +80,9 @@ nonoverlapping input/output buffers and canonical caller-owned regions.
 `world_store_blend_profile` and `world_store_generate` are internal synchronous
 helpers, requiring a valid initialized store and canonical current region; they
 are not an asynchronous loading interface. Their bounded scratch allocation is
-262600 bytes per resolver call. The resolver can read up to64 neighbor regions
+263632 bytes per resolver call. The upgrade resolver can read up to80 neighboring/own regions
 per missing section, so scheduling and profile caching remain optimization work
-before broad gameplay adoption. Distant meshes must use saved blended terrain,
+for smoother gameplay. Distant meshes must use saved blended terrain,
 not independently resample unblended generator1 heights.
 
 Tests compare4608 columns against independent integer weights under both ABIs,
@@ -89,3 +91,11 @@ Y bounds, staging failures and canaries. Real-file tests preserve old section by
 include dirty cache inputs, compare forward/reverse generation order, reload
 saved transitions and reject corrupt neighboring files without losing residents.
 Native Windows file tests are configured in CI; local cross-builds are distinct.
+
+`legacy_column_profile` extracts256 actual highest cells from a complete old
+column. UpgradeProfile1296 extends the264-byte edge profile with an own-column
+flag at264 and256I32 heights at272. `terrain1_upgrade_column`,
+`generate_section_upgrade` and `region_generate_upgrade` apply that ceiling
+when active; new upper sections cannot form floating mountains over preserved
+old air. The world-store dispatcher uses this extended profile only for newly
+recorded sections. The edge-only resolver/API remains compatible with264 bytes.

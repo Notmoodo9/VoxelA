@@ -10,8 +10,8 @@ with tempfile.TemporaryDirectory(prefix='VoxelA actual player ') as folder:
  env=os.environ.copy();env['LD_PRELOAD']=driver;env['XDG_DATA_HOME']=folder
  result=subprocess.run([binary,'--seed','42'],cwd=folder,env=env,capture_output=True,text=True,timeout=90)
  assert result.returncode==0,(result.returncode,result.stdout,result.stderr)
- assert result.stdout.count('Saved player and streamed edits')==2,result.stdout
- assert 'Loaded player and streamed edits' in result.stdout,result.stdout
+ assert result.stdout.count('Saved terrain, player and inventory.')==2,result.stdout
+ assert 'Loaded player and inventory.' in result.stdout,result.stdout
  assert 'failed' not in result.stdout.lower(),result.stdout
  assert result.stdout.count('Autosaved player and world.')>=3,'pause/periodic/exit autosaves not dispatched'
  prefs=(Path(folder)/'Notmoodo9'/'VoxelA'/'settings.vxp').read_bytes()
