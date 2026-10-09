@@ -307,6 +307,9 @@ Survival resources, and test behavior after focus loss/menu/mode changes.
 - [ ] Per-user world directories, settings and crash-safe metadata files.
 - [x] CPU/file-only: checksummed mixed-generator terrain regions preserving complete sections and edits.
 - [x] CPU/file-only: bounded region LRU with revision-checked persistence and dirty-eviction refusal.
+- [x] CPU/file-only: region-backed get/edit/flush/close, signed addressing, staged load and safe dirty-victim saves without a global journal ceiling.
+- [x] CPU/file-only: resumable legacy snapshot import preserving recorded generator0 columns/edits and checkpointing original player/inventory data last.
+- [ ] New-side generator border blending and playable adoption of imported worlds.
 - [ ] Adopt region-backed terrain/edits/containers/entities in gameplay; remove global-journal limits.
 - [ ] Persist generator version per recorded chunk; explicit legacy import rules.
 - [ ] Bounded distance-prioritized generation/mesh/upload queues and cancellation.
@@ -409,3 +412,5 @@ See [biome landscape and distant-terrain contracts](docs/landscape-and-distance.
 See [candidate generator1 contracts](docs/generator1.md) for the new CPU terrain path and [persistent preferences](docs/preferences.md) for per-user settings.
 
 See [versioned terrain region contracts](docs/regions.md) for recorded-block preservation and pending streaming integration.
+
+See [bounded world store and legacy migration](docs/world-store.md) for ownership, failure and integration contracts.

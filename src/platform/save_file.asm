@@ -2,7 +2,7 @@
 section .text
 %ifdef WINDOWS_ABI
  extern CreateFileW, MultiByteToWideChar, WriteFile, ReadFile, FlushFileBuffers, CloseHandle
- extern DeleteFileW, MoveFileExW
+ extern DeleteFileW, MoveFileExW, GetLastError, GetFileAttributesW
 %else
  extern open, write, read, fsync, close, unlink, rename, __errno_location
 %endif
@@ -223,7 +223,8 @@ FRAME file_save,SAVE_FRAME
 END_FRAME file_save,SAVE_FRAME
 ; file_load(path,out,capacity)->byte count or -1, detects trailing bytes.
 ; Output is staging storage and MAY be partially written on error.
-FRAME file_load,LOAD_FRAME
+%macro LOAD_IMPL 2
+FRAME %1,LOAD_FRAME
  mov [rsp+64],A1
  mov [rsp+72],A2
  mov qword [rsp+80],-1
@@ -269,7 +270,7 @@ FRAME file_load,LOAD_FRAME
  movsxd rax,eax
 %endif
  cmp rax,-1
- je .done
+ je .open_failed
  mov [rsp+80],rax
 .read:
  mov r10,[rsp+88]
@@ -325,7 +326,57 @@ FRAME file_load,LOAD_FRAME
  jz .done
 %endif
  mov qword [rsp+104],-1
+ jmp .done
+.open_failed:
+%if %2
+%ifdef WINDOWS_ABI
+ CCALL GetLastError
+ cmp eax,2 ; ERROR_FILE_NOT_FOUND; other failures must not create terrain
+%else
+ CCALL __errno_location
+ cmp dword [rax],2 ; ENOENT
+%endif
+ jne .done
+ mov qword [rsp+104],-3
+%endif
 .done:
  mov rax,[rsp+104]
-END_FRAME file_load,LOAD_FRAME
+END_FRAME %1,LOAD_FRAME
+%endmacro
+LOAD_IMPL file_load,0
+LOAD_IMPL file_load_optional,1
+FRAME directory_valid,LOAD_FRAME
+%ifdef WINDOWS_ABI
+ mov A2,A0
+ mov A0,65001
+ mov A1,8
+ mov A3,-1
+ lea r10,[rsp+128]
+ mov A4,r10
+ mov A5,960
+ CCALL MultiByteToWideChar
+ test eax,eax
+ jz .bad
+ lea A0,[rsp+128]
+ CCALL GetFileAttributesW
+ cmp eax,-1
+ je .bad
+ test eax,0x10
+ jz .bad
+%else
+ mov A1,0x90000 ; DIRECTORY|CLOEXEC
+ xor eax,eax
+ CCALL open
+ test eax,eax
+ js .bad
+ movsxd A0,eax
+ CCALL close
+ test eax,eax
+ jnz .bad
+%endif
+ xor eax,eax
+ jmp .done
+.bad: mov rax,-1
+.done:
+END_FRAME directory_valid,LOAD_FRAME
 ELF_STACK

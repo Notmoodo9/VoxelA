@@ -19,32 +19,41 @@ The current game still uses its5×5-column generator0 cache and8,192-edit journa
 The new region cache is CPU/file-only. Native Windows execution is distinct from
 local Windows cross-builds and Microsoft ABI adapters.
 
-## Next milestone: region-backed world access layer
+## Completed world-access milestone (CPU/file-only)
 
-Deliver a bounded world store that combines the region cache and filesystem
-adapters. Keep it separately tested before changing the playable game.
+The bounded world store now combines addressing, mixed-generator regions,
+staged file reads, get/edit, dirty-victim flush and ownership-preserving close.
+It distinguishes absent files from corrupt/unreadable/incompatible data and
+checks loaded seed/identity. Tests traverse beyond pool capacity, reload8200
+edits, reject failed saves, preserve old generator versions and check lifecycle.
+See docs/world-store.md. This removes the journal ceiling only in the new backend.
 
-Acceptance criteria:
+## Next milestone: legacy upgrade and border blending
 
-- Config contains world seed, default generator, existing world-directory path
-  and a bounded region pool. Validate config/path bounds before mutation.
-- Resolve global X/Y/Z into signed RX/RZ/SY, region slot and local cell, including
-  negative coordinates, world borders and Y−256–767.
-- Construct deterministic region filenames within the filesystem adapter limit.
-  Distinguish an absent file from corrupt, unreadable or incompatible data;
-  generation may proceed only when the requested region is actually absent.
-- Load into staging; verify seed and region identity against the request before
-  publishing. Retain recorded generator versions and complete block data.
-- Generate missing sections using the configured generator; occupied sections
-  must never be regenerated. Dirty generation/edits must update revision.
-- Flush a dirty LRU victim before replacement. Mark only the saved revision
-  clean after confirmed success; failures/uncertain durability keep ownership.
-- Provide get/edit/flush APIs with no global edit-journal ceiling. Test repeated
-  traversal beyond cache capacity, dirty reload, missing files, failed saves,
-  incompatible headers and exact ownership conservation on rejection.
-- Validate both calling conventions where applicable, real filesystem paths,
-  Windows debug/release builds and current gameplay regressions. Update this
-  file and README, then commit/push to main without force.
+The CPU/file legacy-import component is implemented: validate format1–4 first,
+preserve the saved5×5 footprint plus recorded edited columns using generator0,
+apply edits, flush terrain and checkpoint the immutable original snapshot last.
+Interrupted writes can be retried; identical completed imports retain later
+edits. Generator conflicts and incompatible checkpoints are rejected.
+
+Still required before this gate is complete:
+
+- Define deterministic new-side blending from preserved old boundary sections;
+  never modify recorded terrain or edits, including mixed-version region edges.
+- Validate negative coordinates, vertical boundaries, corners and restart-stable
+  blending against independent expected results.
+- Define publication/recovery and original player/inventory adoption for the
+  playable world; do not expose partial migrations as completed worlds.
+- Integrate and validate upgraded-world loading in gameplay before claiming it
+  is available to players. Existing unrecorded exploration cannot be inferred.
+
+The request for five milestones is not complete: world access is delivered,
+legacy import is a tested component, while border blending, playable streaming,
+full-height integration and loading queues remain open dependency gates.
+
+Validation: Linux debug/release CPU references, Microsoft ABI adapters and real
+filesystem regressions pass. Windows debug/release executables and test DLLs
+cross-build; native Windows execution remains a CI check, not a local claim.
 
 ## Subsequent integration gates
 

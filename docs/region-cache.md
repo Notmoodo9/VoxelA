@@ -46,9 +46,9 @@ must not overlap any backing pool. Coordinate/publication validation failures
 return−1; negative returns are statuses, not indices/pointers. Index operations
 reject indices outside capacity. Callers must check statuses before dereferencing.
 
-A future world-access layer must stage/validate requested data before publication,
-flush victims safely and distinguish missing files from corrupt/unreadable ones.
-It must validate loaded seed/coordinates and retain recorded generator versions.
+The world-access layer in world-store.md stages/validates requested data before publication.
+It flushes victims safely, distinguishes missing files from corrupt/unreadable
+ones, validates loaded seed/coordinates and retains recorded generator versions.
 Worker pinning, asynchronous revisions, dirty-region manifests, crash recovery
 across files and distance-prioritized jobs remain later milestones.
 
